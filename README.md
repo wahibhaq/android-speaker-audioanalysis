@@ -7,12 +7,21 @@ This project is actually an extension of [this project] (https://github.com/cnbu
 #### *Please send me a message if I accidentally violate any license.  Thanks!*
 
 ### Compilation
+
+Install Android NDK first  
+https://developer.android.com/tools/sdk/ndk/index.html
+
+
 Run the 'ndk_compile' script to compile the C/C++ source codes into callable library.
 
 `sh ./ndk_compile`
 
+
+In case you want to see how the NDK works  
+http://spencerimp.blogspot.tw/2014/05/android-run-cc-codes-on-androidandroid.html
+
 ### Tutorial & usage
-I assume you are familiar with Android programming already.  Please copy the file 'libsvm-data' directory under you phone's SD card first.  Then you should be able to compile and launch the project. We provide several examples (buttons on the panel) to illustrate how to use the core methods.  You can modify them to fit your case.
+I assume you are familiar with Android programming already.  Please copy the file 'libsvm_data' directory under you phone's SD card first.  Then you should be able to compile and launch the project. We provide several examples (buttons on the panel) to illustrate how to use the core methods.  You can modify them to fit your case.
 
 In those examples, you can find out how we perform training, prediction with different sources of input.  I do recommend you take a look at the **runExp()**
 first.
@@ -23,10 +32,11 @@ The data input format can be:
  
     [label] [idx1]:[value1] [idx2:value2] ... [idxN]:[valueN]
 
-    This is exactly the input formant acceted by the binary excutable version
-    The label can be any number.
-    The indices are those for non-zero terms (but you can also put value zero if you want).
-    Both the feature and label information are included in one file.
+    This is exactly the input formant accepted by the binary excutable version. 
+    
+    * The label can be any number, which means multi-class classification is supported. 
+    * The indices are those for non-zero terms (but you can also put value zero if you want).
+    * Both the feature and label information are included in one file.
 
 
 2. comma separate files (.csv) files
@@ -44,7 +54,7 @@ The data input format can be:
     .
     labelN
 
-    This is the format widely used in the MATLAB (or others) version.  The feaure matrix should be condense (N-by-M), if there are some missing data, please use zero for them.
+    This is the format widely used in the MATLAB (or others) version.  The feaure matrix should be condense (N-by-M), if there are some missing values, please replace them with zero.
 
 3. Embedded (data are written directly in the codes)
     Although writting data in the codes are not feasible in most of the tasks, sometimes it is useful for validation/testing.
