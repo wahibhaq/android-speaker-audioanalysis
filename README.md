@@ -55,7 +55,7 @@ The data input format can be:
     This is the format widely used in the MATLAB (or other) version.  The feaure matrix should be condense (N-by-M), if there are some missing values, please replace them with zero.
 
 3. Embedded (data are written directly in the codes)
-    Although writting data in the codes are not feasible in most of the tasks, sometimes it is useful for your code validation/testing.
+    You can use this one to load the features given by another method you call directly without saving the array to a file.
 
 #### Hint:
 
