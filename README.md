@@ -63,6 +63,9 @@ The data input format can be:
 
 2. You can also enable 'offline training', which loads the pre-trained model (probably done on a PC), and the mean and stardard variation (if you applied normalization before training process) by enabling the member attribute m_OfflineTrain.
 
+3. If you want to intergrate this library into your own Android project, be sure to check /jni/AndroidJNI_source.cpp
+and replace "edu/sinica/citi/mac/android/actclassification/ActClassificationActivity" with your file name, where your import the compiled library.
+
 ### Others
 We also provide scriptsto help you transform feature or trained model files among different platforms:
 
