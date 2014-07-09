@@ -542,7 +542,7 @@ public class ActClassificationActivity extends Activity{
 	 * Illustrate a simple classification experiment.
 	 * 
 	 * Load both training and testing data in csv files, and show accuracy on the screen
-	 * Off-line training: train the model on the phone rather than load the pre-trained one
+	 * On-line training: train the model on the phone rather than load the pre-trained one
 	 * Normalize the data using the mean and STD of training data
 	 */
 	void runExp() {
