@@ -145,11 +145,11 @@ static jint doClassification(JNIEnv *env, jobject obj, jobjectArray valuesArr,
 
 static JNINativeMethod sMethods[] = {
     /* name, signature, funcPtr */
-    {"doClassificationNative", "([[D[[IILjava/lang/String;[I[[D)I",
+    {"svmpredict", "([[D[[IILjava/lang/String;[I[[D)I",
         (void*)doClassification},
-    {"trainClassifierNative", "(IIDDDDDDIDIIDILjava/lang/String;Ljava/lang/String;)I",
+    {"svmtrain", "(IIDDDDDDIDIIDILjava/lang/String;Ljava/lang/String;)I",
         (void*)trainClassifier_libsvm},
-    {"trainClassifierNative", "(IIDDDDDDIDIIDI[[D[I[[ILjava/lang/String;)I",
+    {"svmtrain", "(IIDDDDDDIDIIDI[[D[I[[ILjava/lang/String;)I",
         (void*)trainClassifier_array},
 };
 

@@ -51,17 +51,17 @@ public class ActClassificationActivity extends Activity{
 	/*
 	 * Load the native libraries (written in C/C++, compiled by NDK)
 	 */
-	private native int trainClassifierNative(int svmType, int kernelType, double degree, 
+	private native int svmtrain(int svmType, int kernelType, double degree, 
 			double gamma, double coef0, double cost, double nu, double epsilonSVR, int cacheSize, 
 			double epsilon, int shrinking, int isProb, double weightCsvc, int nFold,
 			String trainingFile, String modelFile);
 
-	private native int trainClassifierNative(int svmType, int kernelType, double degree, 
+	private native int svmtrain(int svmType, int kernelType, double degree, 
 			double gamma, double coef0, double cost, double nu, double epsilonSVR, int cacheSize, 
 			double epsilon, int shrinking, int isProb, double weightCsvc, int nFold,
 			double[][] arrayXtr, int[] arrayYtr, int[][] arrayIdx, String modelFile);
 
-	private native int doClassificationNative(double values[][], int indices[][],
+	private native int svmpredict(double values[][], int indices[][],
 			int isProb, String modelFile, int labels[], double probs[][]);
 
 	static {
@@ -260,7 +260,7 @@ public class ActClassificationActivity extends Activity{
 		}
 
 		// Call the native svm jni
-		if (trainClassifierNative(m_svmType, m_kernelType, m_degree, m_gamma, m_coef0, m_cost,
+		if (svmtrain(m_svmType, m_kernelType, m_degree, m_gamma, m_coef0, m_cost,
 				m_nu, m_epsilonSVR, m_cacheSize, m_epsilon, m_shrinking, m_isProb, m_weightCsvc, m_nFold,
 				fileTr, m_fileOutModel) == -1) {
 			Toast.makeText(m_context, "Something wrong when training the model", Toast.LENGTH_SHORT).show();
@@ -323,7 +323,7 @@ public class ActClassificationActivity extends Activity{
 		arrayXtr = MathMethods.getSparseMatrix(arrayXtr, arrayIdxTr);
 
 		/* Call the native svm jni */
-		if (trainClassifierNative(m_svmType, m_kernelType, m_degree, m_gamma, m_coef0, m_cost,
+		if (svmtrain(m_svmType, m_kernelType, m_degree, m_gamma, m_coef0, m_cost,
 				m_nu, m_epsilonSVR, m_cacheSize, m_epsilon, m_shrinking, m_isProb, m_weightCsvc, m_nFold,
 				arrayXtr, arrayYtr, arrayIdxTr, m_fileOutModel) == -1) {
 			Toast.makeText(m_context, "Something wrong when training the model", Toast.LENGTH_SHORT).show();
@@ -434,7 +434,7 @@ public class ActClassificationActivity extends Activity{
 
 
 		/* Call the native svm jni */
-		if (trainClassifierNative(m_svmType, m_kernelType, m_degree, m_gamma, m_coef0, m_cost,
+		if (svmtrain(m_svmType, m_kernelType, m_degree, m_gamma, m_coef0, m_cost,
 				m_nu, m_epsilonSVR, m_cacheSize, m_epsilon, m_shrinking, m_isProb, m_weightCsvc, m_nFold,
 				arrayXtr, arrayYtr, arrayIdxTr, m_fileOutModel) == -1) {
 			Toast.makeText(m_context, "Something wrong when training the model", Toast.LENGTH_SHORT).show();
@@ -483,7 +483,7 @@ public class ActClassificationActivity extends Activity{
 		int[] arrayPredLabel = new int[arrayXte.length];
 		double[][] arrayPredScore = new double[arrayXte.length][m_nClass];
 
-		doClassificationNative(arrayXte, arrayIdxTe, m_isProb, m_fileOutModel, arrayPredLabel, arrayPredScore);				
+		svmpredict(arrayXte, arrayIdxTe, m_isProb, m_fileOutModel, arrayPredLabel, arrayPredScore);				
 		/* Compute the performance */
 		float accuracy = MathMethods.getAccuracy(arrayYte, arrayPredLabel);
 		Toast.makeText(m_context, "Accuracy:" + Float.toString(accuracy), Toast.LENGTH_LONG).show();
@@ -528,7 +528,7 @@ public class ActClassificationActivity extends Activity{
 		int[] arrayPredLabel = new int[arrayXte.length];
 		double[][] arrayPredScore = new double[arrayXte.length][m_nClass];
 
-		doClassificationNative(arrayXte, arrayIdxTe, m_isProb, m_fileOutModel, arrayPredLabel, arrayPredScore);		
+		svmpredict(arrayXte, arrayIdxTe, m_isProb, m_fileOutModel, arrayPredLabel, arrayPredScore);		
 
 		// Pops the predicted label
 		String s = "";
@@ -599,7 +599,7 @@ public class ActClassificationActivity extends Activity{
 		arrayXte = MathMethods.getSparseMatrix(arrayXte, arrayIdxTe);	
 		
 		/* Call native library to train the model */
-		if (trainClassifierNative(m_svmType, m_kernelType, m_degree, m_gamma, m_coef0, m_cost,
+		if (svmtrain(m_svmType, m_kernelType, m_degree, m_gamma, m_coef0, m_cost,
 				m_nu, m_epsilonSVR, m_cacheSize, m_epsilon, m_shrinking, m_isProb, m_weightCsvc, m_nFold,
 				arrayXtr, arrayYtr, arrayIdxTr, m_fileOutModel) == -1) {
 			Toast.makeText(m_context, "Something wrong when training the model", Toast.LENGTH_SHORT).show();
@@ -612,7 +612,7 @@ public class ActClassificationActivity extends Activity{
 		int[] arrayPredLabel = new int[arrayXte.length];
 		double[][] arrayPredScore = new double[arrayXte.length][m_nClass];
 		
-		doClassificationNative(arrayXte, arrayIdxTe, m_isProb, m_fileOutModel, arrayPredLabel, arrayPredScore);	
+		svmpredict(arrayXte, arrayIdxTe, m_isProb, m_fileOutModel, arrayPredLabel, arrayPredScore);	
 		
 		/* Evaluation */
 		float accuracy = MathMethods.getAccuracy(arrayYte, arrayPredLabel);
