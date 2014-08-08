@@ -2,6 +2,7 @@ package edu.sinica.citi.mac;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -39,7 +40,6 @@ public class FileOperationMethods {
 				}		
 			}
 			bw.close();
-			fw.close();
 			fw.close();
 		}
 		catch (FileNotFoundException e) {
@@ -314,6 +314,68 @@ public class FileOperationMethods {
 
 	}
 	
+//	/**
+//	 * Given a file that put one item in one row, returns an array for the item list
+//	 * 
+//	 * @param fileInput item list file, whose content should be integer
+//	 * @return the list array in int
+//	 */
+//	public static int[] loadListFile(String fileInput) {
+//		List<Integer> listItem = new ArrayList();
+//		try {
+//			FileReader fr = new FileReader(fileInput);
+//			BufferedReader br = new BufferedReader(fr);
+//			
+//			String item;
+//			while((item = br.readLine()) != null) {
+//				// remove the sign (+)
+//				item = item.replace("+", "");
+//				listItem.add(Integer.parseInt(item));
+//			}
+//		}
+//		catch (FileNotFoundException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		}
+//		catch (IOException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		}
+//		
+//		return MathMethods.convertList2array(listItem);
+//	}
+	
+//	/**
+//	 * Given a file that put one item in one row, returns an array for the item list
+//	 * 
+//	 * @param fileInput item list file, whose content should be integer
+//	 * @return the list array in double
+//	 */
+//	public static double[] loadListFile(String fileInput) {
+//		List<Double> listItem = new ArrayList();
+//		try {
+//			FileReader fr = new FileReader(fileInput);
+//			BufferedReader br = new BufferedReader(fr);
+//			
+//			String item;
+//			while((item = br.readLine()) != null) {
+//				// remove the sign (+)
+//				item = item.replace("+", "");
+//				listItem.add(Double.parseDouble(item));
+//			}
+//		}
+//		catch (FileNotFoundException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		}
+//		catch (IOException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		}
+//		
+//		return MathMethods.convertList2array(listItem);
+//	}
+	
 	/**
 	 * Given a file that put one item in one row, returns an array for the item list
 	 * 
@@ -422,10 +484,46 @@ public class FileOperationMethods {
 	}
 	
 	/**
+	 * Given the 2-D data array in float and the delimiter, write them into a csv file
+	 * 
+	 * @param fileOutput path of csv output file
+	 * @param matrixInput 2-D array in float, should be a full matrix
+	 * @param delimiter delimiter char
+	 */
+	public static void csvwrite(String fileOutput, float[][] matrixInput, char delimiter) {
+		
+		try {
+			FileWriter fw = new FileWriter(fileOutput);
+			BufferedWriter bw = new BufferedWriter(fw);
+			
+			for(float[] arrayRow : matrixInput) {
+				List<String> arrayOut = new ArrayList<String>();
+				for(float item : arrayRow) {
+					arrayOut.add(Double.toString(item));
+				}
+						
+				// Remove the '[' ,']', and commas; then replace the default delimiter with the one we assign
+				String sOut = arrayOut.toString().replaceAll("[\\s\\[\\]]", "").replaceAll("[,]", Character.toString(delimiter));
+				//Write (don't forget the newline character!)
+				fw.write(sOut + '\n');			
+			}
+			bw.close();
+			fw.close();
+			
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+	/**
 	 * Given the 2-D data array in int and the delimiter, write them into a csv file
 	 * 
 	 * @param fileOutput path of csv output file
-	 * @param matrixInput 2-D array in double, should be a full matrix
+	 * @param matrixInput 2-D array in int, should be a full matrix
 	 * @param delimiter delimiter char
 	 */
 	public static void csvwrite(String fileOutput, int[][] matrixInput, char delimiter) {
@@ -456,6 +554,178 @@ public class FileOperationMethods {
 			e.printStackTrace();
 		}
 	}
+	
+	/**
+	 * Write a record into csv file
+	 * 
+	 * @param fileOutput path of csv output file
+	 * @param arrayInput record in a 1-D double array
+	 * @param delimiter delimiter char
+	 */
+	public static void csvwrite(String fileOutput, double[] arrayInput, char delimiter) {
+		double[][] matInput = new double[1][arrayInput.length];
+		matInput[0] = arrayInput;
+		csvwrite(fileOutput, matInput, delimiter);
+	}
+	
+	/**
+	 * Write a record into csv file
+	 * 
+	 * @param fileOutput path of csv output file
+	 * @param arrayInput record in a 1-D float array
+	 * @param delimiter delimiter char
+	 */
+	public static void csvwrite(String fileOutput, float[] arrayInput, char delimiter) {
+		float[][] matInput = new float[1][arrayInput.length];
+		matInput[0] = arrayInput;
+		csvwrite(fileOutput, matInput, delimiter);
+	}
+	
+	/**
+	 * Write a record into csv file
+	 * 
+	 * @param fileOutput path of csv output file
+	 * @param arrayInput record in a 1-D int array
+	 * @param delimiter delimiter char
+	 */
+	public static void csvwrite(String fileOutput, int[] arrayInput, char delimiter) {
+		int[][] matInput = new int[1][arrayInput.length];
+		matInput[0] = arrayInput;
+		csvwrite(fileOutput, matInput, delimiter);
+	}
+	
+	/**
+	 * Given the path of a directory and the extension, returns the files match your query in a File list
+	 * <br>
+	 * For example: 
+	 * 		getFileList("./somedir/", "mp3");
+	 * 
+	 * @param directoryName path of the directory, can be multilevel
+	 * @param fileExtension the extension you want (case insensitive)
+	 * @return all the files in List
+	 */
+	public static List<File> getFileList(String directoryName, String fileExtension) {
+		List<File> fileList = new ArrayList<File>();
+		File fileDirectory = new File(directoryName);	
+		getDirectoryContent(fileList, fileDirectory, fileExtension);
+		
+		return fileList;
+	}
+	
+	/**
+	 * Given the path of a directory and the extension list, returns the files match your query in a File list
+	 * <br>
+	 * For example: 
+	 * 		getFileList("./somedir/", ["mp3", "wav"]);
+	 * 
+	 * @param directoryName path of the directory, can be multilevel
+	 * @param arrayFileExt the extension you want (case insensitive)
+	 * @return all the files in List
+	 */
+	public static List<File> getFileList(String directoryName, String[] arrayFileExt) {
+		List<File> fileList = new ArrayList<File>();
+		File fileDirectory = new File(directoryName);	
+		getDirectoryContent(fileList, fileDirectory, arrayFileExt);
+		
+		return fileList;
+	}
+	
+	/**
+	 * Store a file in another directory with exactly the same structure, changing the extension,
+	 * and returns the new file path
+	 * 
+	 * @param dirOut the path of new directory 
+	 * @param fileInput the file path of your original file
+	 * @param extNew extension (not '.' required)
+	 * @return
+	 */
+	public static String setOutFilePath(String dirOut, String fileInput, String extNew) {	
+		String[] token = fileInput.split("\\.");
+		/* Split the path to replace the extension to extNew */
+		StringBuffer songName = new StringBuffer();
+		for(int i = 0;i<token.length-1;i++) {
+			songName.append(token[i] + '.');
+		}
+		songName.append(extNew);
+		
+		/* Reuse token array for directory */
+		token = fileInput.split("/");
+		StringBuffer subDir = new StringBuffer();
+		for (int i = 1;i<token.length-1;i++) {
+			subDir.append(token[i] + "/");
+		}
+		File tmp = new File(dirOut+ "/" + subDir );
+
+		if (!tmp.exists()) {
+			tmp.mkdirs();
+		}
+		
+		return dirOut + songName;
+	}
+	
+	/**
+	 * Make sure every directory is exist
+	 */
+	public static void checkDir(String strFile) {	
+		int idx = Math.max(strFile.lastIndexOf("/"), strFile.lastIndexOf("\\"));
+		File tmpDir = new File(strFile.substring(0,idx));
+		if (!tmpDir.exists()) {
+			tmpDir.mkdirs();
+		}
+	}
+
+	public static void deleteDirectory(File path) {
+	    if(path.exists()) {
+	        File[] files = path.listFiles();
+	        for(int i=0; i<files.length; i++) {
+	           if(files[i].isDirectory()) {
+	             deleteDirectory(files[i]);
+	           } else {
+	             files[i].delete();
+	           }
+	        }
+	      }
+	}
+	
+	/**
+	 * Given the path of a directory and the extension, returns the files match your query in a File list
+	 * <br>
+	 * For example: 
+	 * 		getFileList("./somedir/", "mp3");
+	 * 
+	 * @param directoryName path of the directory, can be multilevel
+	 * @param fileExt the extension you want (case insensitive)
+	 * @return all the files in List
+	 */
+	private static void getDirectoryContent(List<File> fileList, File fileDirectory, String fileExt) {
+		String[] arrayFileExt = {fileExt};
+		getDirectoryContent(fileList, fileDirectory, arrayFileExt);
+	}
+	
+	private static void getDirectoryContent(List<File> fileList, File fileDirectory, String[] arrayFileExt) {
+		if(fileDirectory.exists()) {
+			try {
+				for(File file: fileDirectory.listFiles()) {
+					if(file.isDirectory()) {
+						getDirectoryContent(fileList, file, arrayFileExt);
+					} else {
+						String fileName = file.getName();					
+						/* skip the .XXX.ext files on OSX */					
+						if(!fileName.startsWith(".")) {
+							for(String fileExt: arrayFileExt) {
+								if(fileName.endsWith(fileExt.toLowerCase()) || fileName.endsWith(fileExt.toUpperCase()))
+									fileList.add(file);
+							}
+						}
+					} // end of else
+				} // end of for
+			} catch(Exception e) {
+				System.out.println("error at: " + fileDirectory);
+			}	
+		}
+	}
+	
+	
 	
 
 }
