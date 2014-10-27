@@ -28,19 +28,18 @@ fullData = pd.read_csv('csv/1percent_of_200mels.csv', delimiter=",",skiprows=0, 
 
 
 shape = fullData.shape
-print('size')
-print(shape)
+print('size', shape)
+
 #print(fullData.iloc[:,1:15])
 
 #trainData = fullData.iloc[:,0:36]
 #trainTarget = fullData.iloc[:,36:37]
 
-trainData = fullData.iloc[:,:-1]
-trainTarget = fullData.iloc[:,-1]
+trainData = fullData.iloc[:,:-1] #all except last column
+trainTarget = fullData.iloc[:,-1] # only last column
 
-#rows = random.sample(trainData.index, 1000)
-#trainData = trainData.ix[rows]
-#trainTarget = trainTarget.ix[rows]
+print('target size', trainTarget.shape)
+print('target values', trainTarget)
 
 trainData = np.array(trainData)
 trainTarget = np.array(trainTarget)
@@ -59,7 +58,7 @@ trainData = preprocessing.scale(trainData)
 print('preprocessing over')
 # Split the dataset in two equal parts
 X_train, X_test, y_train, y_test = train_test_split(
-    trainData, trainTarget, test_size=0.2, random_state=0)
+    trainData, trainTarget, test_size=0.2, random_state=123)
 print(X_train.shape)
 print(y_train.shape)
 print(X_test.shape)
@@ -69,14 +68,15 @@ clf = svm.LinearSVC()
 #clf = svm.SVC(gamma=0.001, C=100) #this gives improved results
 
 clf.fit(X_train,y_train)
-print('training over')
-print(le.inverse_transform(clf.predict(X_test)))
+#print('training over')
+#print(le.inverse_transform(clf.predict(X_test)))
 score = clf.score(X_test, y_test)
 print('score')
 print(score)
+
 # Set the parameters by cross-validation
 
-
+'''
 tuned_parameters = [{
                      'C': [0.1,1]}]
 
@@ -129,4 +129,4 @@ for score in scores:
     pl.legend(loc="lower right")
     pl.savefig('roc'+score)
     print()
-
+'''
