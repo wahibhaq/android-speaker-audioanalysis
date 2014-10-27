@@ -20,6 +20,8 @@ public class ActClassificationActivity extends Activity{
 	public static String TAG = "ActClassification";
 	private Context m_context = this;	
 	public static final File SD_PATH = Environment.getExternalStorageDirectory();
+	public static final String SD_FOLDER_PATH = "/Thesis/SVM/Mels"; //"/Thesis/SVM";
+	
 
 	/* For libsvm parameters */
 	private int m_svmType;
@@ -82,19 +84,19 @@ public class ActClassificationActivity extends Activity{
 		m_cost = 1;
 		m_nu = 0.5;
 		m_epsilonSVR = 0.1;
-		m_cacheSize = 100;
+		m_cacheSize = 1000; //default was 100
 		m_epsilon = 0.001;
 		m_shrinking = 1;
 		m_isProb = 1;
 		m_weightCsvc = 1;
 		m_nFold = 0; // disable
-		m_fileTrain = SD_PATH + "/libsvm_data/training.libsvm";
-		m_fileOutModel = SD_PATH + "/libsvm_data/modelFile";
+		m_fileTrain = SD_PATH + SD_FOLDER_PATH + SD_FOLDER_PATH + "/libsvm_data/training.libsvm";
+		m_fileOutModel = SD_PATH + SD_FOLDER_PATH + "/libsvm_data/modelFile";
 		m_nClass = 2;   	
-		m_isNormalized = false; // use the given data directly
+		m_isNormalized = false; // use the given data directly //default was false //I am normalizing on my end so no need
 		m_isOfflineTrain = false; //train the model on the phone
-		m_fileTrMean = SD_PATH + "/libsvm_data/mean_tr.csv";
-		m_fileTrSTD = SD_PATH + "/libsvm_data/std_tr.csv";
+		m_fileTrMean = SD_PATH + SD_FOLDER_PATH + "/libsvm_data/mean_tr.csv";
+		m_fileTrSTD = SD_PATH + SD_FOLDER_PATH + "/libsvm_data/std_tr.csv";
 		
 	}
 
@@ -221,8 +223,8 @@ public class ActClassificationActivity extends Activity{
 		m_isProb = 1;
 		m_nClass = 2; 
 		m_nFold = 0;
-		m_fileTrain = SD_PATH + "/libsvm_data/training.libsvm";
-		m_fileOutModel = SD_PATH + "/libsvm_data/model_linear_libsvm";
+		m_fileTrain = SD_PATH + SD_FOLDER_PATH + "/libsvm_data/training.libsvm";
+		m_fileOutModel = SD_PATH + SD_FOLDER_PATH + "/libsvm_data/model_linear_libsvm";
 		String fileTr = m_fileTrain; 
 
 		// Load the data into arrays
@@ -280,6 +282,7 @@ public class ActClassificationActivity extends Activity{
 	 * Train and model using csv file
 	 */
 	void train_csv() {
+		
 		setDefault();
 
 		// linear kernel, c = 1, use probability 
@@ -289,9 +292,9 @@ public class ActClassificationActivity extends Activity{
 		m_isProb = 1;
 		m_nClass = 2; 
 		m_nFold = 0;
-		m_fileTrain = SD_PATH + "/libsvm_data/Xtr.csv";
-		m_fileOutModel = SD_PATH + "/libsvm_data/model_linear_csv";
-		String fileYtr = SD_PATH + "/libsvm_data/Ytr.txt";
+		m_fileTrain = SD_PATH + SD_FOLDER_PATH + "/libsvm_data/Xtr.csv";
+		m_fileOutModel = SD_PATH + SD_FOLDER_PATH + "/libsvm_data/model_linear_csv";
+		String fileYtr = SD_PATH + SD_FOLDER_PATH + "/libsvm_data/Ytr.txt";
 
 		/* Train */
 		double[][] arrayXtr = FileOperationMethods.csvread(m_fileTrain, ',');
@@ -347,7 +350,7 @@ public class ActClassificationActivity extends Activity{
 		m_nClass = 2; 
 		m_nFold = 0;
 		m_fileTrain = " ";//whatever
-		m_fileOutModel = SD_PATH + "/libsvm_data/model_linear_array";
+		m_fileOutModel = SD_PATH + SD_FOLDER_PATH + "/libsvm_data/model_linear_array";
 
 		/* Exactly the same in /libsvm_data/training.libsvm */
 		int [] arrayYtr = {+1, -1, +1, -1, -1, -1, +1, +1, +1, +1,
@@ -461,7 +464,8 @@ public class ActClassificationActivity extends Activity{
 	 *   This version accepts the libsvm file with label, for experiment validation
 	 */
 	private void predict_accuracy() {
-		String fileTest = SD_PATH + "/libsvm_data/test_label.libsvm";		
+		
+		String fileTest = SD_PATH + SD_FOLDER_PATH + "/libsvm_data/test_label.libsvm";		
 
 		// Load the features into arrays
 		List<Integer> listY = new ArrayList<Integer>();
@@ -508,7 +512,8 @@ public class ActClassificationActivity extends Activity{
 	 *   This version accepts the libsvm file without label
 	 */
 	private void predict_label() {
-		String fileTest = SD_PATH + "/libsvm_data/Xte.libsvm";		
+		
+		String fileTest = SD_PATH + SD_FOLDER_PATH + "/libsvm_data/Xte.libsvm";		
 		// Load the features into arrays
 		List<List<Double>> listX = new ArrayList<List<Double>>();
 		List<List<Integer>> listIndex = new ArrayList<List<Integer>>();
@@ -554,12 +559,12 @@ public class ActClassificationActivity extends Activity{
 		m_isProb = 1;
 		m_nClass = 2; 
 		m_nFold = 0;
-		m_fileOutModel = SD_PATH + "/libsvm_data/model_linear_csv";
-		m_fileTrain = SD_PATH + "/libsvm_data/Xtr.csv";
-		String fileYtr = SD_PATH + "/libsvm_data/Ytr.txt";
+		m_fileOutModel = SD_PATH + SD_FOLDER_PATH + "/libsvm_data/model_linear_csv";
+		m_fileTrain = SD_PATH + SD_FOLDER_PATH + "/libsvm_data/Xtr.csv";
+		String fileYtr = SD_PATH + SD_FOLDER_PATH + "/libsvm_data/Ytr.txt";
 		
-		String fileXte = SD_PATH + "/libsvm_data/Xte.csv";
-		String fileYte = SD_PATH + "/libsvm_data/Yte.txt";
+		String fileXte = SD_PATH + SD_FOLDER_PATH + "/libsvm_data/Xte.csv";
+		String fileYte = SD_PATH + SD_FOLDER_PATH + "/libsvm_data/Yte.txt";
 		
 		/* Load data */
 		double[][] arrayXtr = FileOperationMethods.csvread(m_fileTrain, ',');
