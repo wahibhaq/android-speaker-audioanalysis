@@ -14,7 +14,7 @@ import array
 #all_data = pd.read_csv('200mels.csv')
 # reading in all data into a NumPy array except the last column
 
-all_data = np.loadtxt(open("csv/1percent_of_200mels.csv","r"),
+all_data = np.loadtxt(open("csv/200mels.csv","r"),
     delimiter=",",
     skiprows=0,
     dtype=np.float16,
@@ -44,7 +44,7 @@ data = all_data[0:]
 print('Full Data : ',data.shape)
 
 data_train, data_test = train_test_split(data,
-   test_size=0.10, random_state=123)
+   test_size=0.20, random_state=123)
 
 #print(X_train.shape)
 #print(y_train.shape)
@@ -62,11 +62,11 @@ with open('onepercent_mels.csv', 'w') as fp:
 '''
 
 
-with open('csv/1percent_trainfile.csv', 'w') as FOUT:
+with open('csv/200mels_trainfile.csv', 'w') as FOUT:
 	np.savetxt(FOUT, data_train ,fmt='%1.5f',delimiter=',')
 
 
-with open('csv/1percent_testfile.csv', 'w') as FOUT:
+with open('csv/200mels_testfile.csv', 'w') as FOUT:
 	np.savetxt(FOUT, data_test, fmt='%1.5f',delimiter=',')
 
 

@@ -10,35 +10,43 @@ import csv
 import numpy as np
 from sklearn import preprocessing
 import pandas as pd
-
+import sys
 
 print(__doc__)
 
-parentFolder = '1000rows'
+#folderName = '10000rows'
 
-fullData = pd.read_csv(parentFolder + '/Xtr.csv', delimiter=",",header=-1, dtype=np.float16)
+def generateMeanStd(folderName):
 
-
-
-shape = fullData.shape
-print('size of Xtr data ', shape)
+	fullData = pd.read_csv(folderName + '/Xtr.csv', delimiter=",",header=-1, dtype=np.float16)
 
 
 
-meanData = fullData.ix[:,:len(fullData.columns) - 1].astype('float16').mean()
-stdData = fullData.ix[:,:len(fullData.columns) - 1].astype('float16').std()
-
-meanData = preprocessing.scale(meanData)
-stdData = preprocessing.scale(stdData)
-print('scaling-normalization over')
-
-with open(parentFolder+'/mean_tr.csv', 'w') as FOUT:
-    np.savetxt(FOUT, np.atleast_2d(meanData) ,fmt='%1.5f' , delimiter=',', newline='')
+	shape = fullData.shape
+	print('size of Xtr data ', shape)
 
 
-with open(parentFolder + '/std_tr.csv', 'w') as FOUT:
-    np.savetxt(FOUT, np.atleast_2d(stdData), fmt='%1.5f' , delimiter=',', newline='')
+
+	meanData = fullData.ix[:,:len(fullData.columns) - 1].astype('float16').mean()
+	stdData = fullData.ix[:,:len(fullData.columns) - 1].astype('float16').std()
+
+	meanData = preprocessing.scale(meanData)
+	stdData = preprocessing.scale(stdData)
+	print('scaling-normalization over')
+
+	with open(folderName+'/mean_tr.csv', 'w') as FOUT:
+	    np.savetxt(FOUT, np.atleast_2d(meanData) ,fmt='%1.5f' , delimiter=',', newline='')
 
 
-print('mean and std csv files created')
-   
+	with open(folderName + '/std_tr.csv', 'w') as FOUT:
+	    np.savetxt(FOUT, np.atleast_2d(stdData), fmt='%1.5f' , delimiter=',', newline='')
+
+
+	print('mean and std csv files created')
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print('folder name/path is missing e.g 1000rows/')
+    else:
+        folderName    = sys.argv[1]
+        generateMeanStd(folderName)   
