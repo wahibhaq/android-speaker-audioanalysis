@@ -1,0 +1,293 @@
+package tum.laser.voicerecognizer;
+
+import java.io.File;
+import java.io.FileWriter;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedList;
+
+import android.media.AudioFormat;
+import android.media.AudioRecord;
+import android.media.MediaRecorder;
+import android.os.Bundle;
+import android.app.Activity;
+import android.view.Menu;
+
+public class MainActivity extends Activity {
+
+
+	// TODO: may need to change this to 44100 sampling to make it more compatible across devices
+	// Alternatively, we could dynamically discover it 
+	// http://stackoverflow.com/questions/6745344/record-audio-using-audiorecord-in-android
+
+	private static int RECORDER_SOURCE = MediaRecorder.AudioSource.VOICE_RECOGNITION;
+	private static int RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
+	private static int RECORDER_AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT;
+	private static int RECORDER_SAMPLERATE = 8000;
+
+	// 8000Hz/8192bins = 1Hz/bin freq.res.
+	// 8192 samples per FFT; 8000Hz -> 1.024s
+	//private static int FFT_SIZE = 8192;
+
+	private static int FFT_SIZE = 512;
+	//8000samples/s divided by 256samples/frame -> 32ms/frame (31.25ms)
+	private static int FRAME_SIZE = 256;
+
+	//32ms/frame times 64frames/window = 2s/window
+	private static int WINDOW_SIZE = 64; //nothing to do with smoothing window (Hamming window)
+
+	private static int MFCCS_VALUE = 20;
+	private static int NUMBER_OF_FINAL_FEATURES = MFCCS_VALUE - 1; //throw away first coefficient (energy)
+	private static int MEL_BANDS = 20; //use FB-20
+	private static double[] FREQ_BANDEDGES = {50,250,500,1000,2000};
+
+	private static int GMM_NUM_COMPONENTS = 8;
+
+	private int bufferSize = 0;
+
+	private static int[] freqBandIdx = null;
+	public double[] featureBuffer = null;
+
+	private Thread recordingThread = null;
+	private FFT featureFFT = null;
+	private MFCC featureMFCC = null;
+	private Window featureWin = null;
+	private AudioRecord audioRecorder = null;
+
+	@Override
+	protected void onStart() {
+		super.onStart();
+
+
+		bufferSize = AudioRecord.getMinBufferSize(
+				RECORDER_SAMPLERATE,
+				RECORDER_CHANNELS,
+				RECORDER_AUDIO_ENCODING);
+
+		bufferSize = Math.max(bufferSize, RECORDER_SAMPLERATE*2);
+		//bufferSamples = bufferSize/2;
+
+
+		//allocateFrameFeatureBuffer(STREAM_FEATURES);
+
+		featureFFT = new FFT(FFT_SIZE);
+		featureWin = new Window(FRAME_SIZE);
+		featureMFCC = new MFCC(FFT_SIZE, MFCCS_VALUE, MEL_BANDS, RECORDER_SAMPLERATE);
+
+		freqBandIdx = new int[FREQ_BANDEDGES.length];
+		for (int i = 0; i < FREQ_BANDEDGES.length; i ++)
+		{
+			freqBandIdx[i] = Math.round((float)FREQ_BANDEDGES[i]*((float)FFT_SIZE/(float)RECORDER_SAMPLERATE));
+		}
+
+		audioRecorder = new AudioRecord(
+				RECORDER_SOURCE,
+				RECORDER_SAMPLERATE,
+				RECORDER_CHANNELS,
+				RECORDER_AUDIO_ENCODING,
+				bufferSize);
+		audioRecorder.startRecording();
+		recordingThread = new Thread(new Runnable()
+		{
+			@Override
+			public void run()
+			{
+				handleAudioStream();
+			}
+		}, "AudioRecorder Thread");
+		recordingThread.start();
+	}
+
+	@Override
+	protected void onStop() {
+		super.onStop();
+		audioRecorder.stop();
+		audioRecorder.release();
+		audioRecorder = null;
+		recordingThread = null;
+	}
+
+	//TODO: drop frames without speech -> speakersense
+	//TODO: cepstral mean normalization -> overview paper
+	//TODO: augment features with derivatives -> overview paper
+
+	private void handleAudioStream()
+	{
+		short dataFrame16bit[] = new short[FRAME_SIZE];
+		double fftBufferR[] = new double[FFT_SIZE];
+		double fftBufferI[] = new double[FFT_SIZE];
+		double featureCepstrum[];
+
+		//lists of windows
+		LinkedList<ArrayList<double[]>> featureCepstrums = new LinkedList<ArrayList<double[]>>();
+		LinkedList<ArrayList<double[]>> psdsAcrossFrequencyBands = new LinkedList<ArrayList<double[]>>();
+
+		//windows: list of frames
+		ArrayList<double[]> cepstrumWindow = null;
+		ArrayList<double[]> psdWindow = null;
+
+		int readAudioSamples = 0;
+
+		//# of iterations (~seconds)
+		int currentIteration = 0;
+
+		while (currentIteration < 2880) //960 = 15*64 -> 15*2s=30s
+		{
+			//combine WINDOW_SIZE consecutive frames to a window
+			//2s with a window size of 64
+			if (currentIteration % WINDOW_SIZE == 0) {
+				cepstrumWindow = new ArrayList<double[]>(WINDOW_SIZE);
+				featureCepstrums.add(cepstrumWindow);
+
+				psdWindow = new ArrayList<double[]>(WINDOW_SIZE);
+				psdsAcrossFrequencyBands.add(psdWindow);
+			}
+
+			currentIteration++;
+
+			// read() kann entweder mind. buffer_size/2 zeichen zurückliefern
+			// (wir brauchen viel weniger) oder blockiert:
+			// http://stackoverflow.com/questions/15804903/android-dev-audiorecord-without-blocking-or-threads
+			readAudioSamples = audioRecorder.read(dataFrame16bit, 0, FRAME_SIZE);
+
+			if (readAudioSamples == 0)
+				return;
+
+			// Frequency analysis
+			Arrays.fill(fftBufferR, 0);
+			Arrays.fill(fftBufferI, 0);
+
+			// Convert audio buffer to doubles
+			for (int i = 0; i < readAudioSamples; i++)
+			{
+				fftBufferR[i] = dataFrame16bit[i];
+			}
+
+			// In-place windowing
+			featureWin.applyWindow(fftBufferR);
+
+			// In-place FFT
+			featureFFT.fft(fftBufferR, fftBufferI);
+
+			// Get PSD across frequency band ranges
+			double[] psdAcrossFrequencyBands = new double[FREQ_BANDEDGES.length - 1];
+			for (int b = 0; b < (FREQ_BANDEDGES.length - 1); b ++)
+			{
+				int j = freqBandIdx[b];
+				int k = freqBandIdx[b+1];
+				double accum = 0;
+
+				for (int h = j; h < k; h ++)
+					accum += fftBufferR[h]*fftBufferR[h] + fftBufferI[h]*fftBufferI[h];
+
+				psdAcrossFrequencyBands[b] = accum/((double)(k - j));
+			}
+
+			// Add PSDs of this frame to our window
+			psdWindow.add(psdAcrossFrequencyBands);
+
+			// Get MFCCs
+			featureCepstrum = featureMFCC.cepstrum(fftBufferR, fftBufferI);
+
+			//only keep energy-independent features, drop first coefficient
+			//no need to convert to list for 19 elements
+			featureCepstrum = Arrays.copyOfRange(featureCepstrum, 1, featureCepstrum.length);
+
+			// Add MFCCs of this frame to our window
+			cepstrumWindow.add(featureCepstrum);
+		}
+		trainGMM(featureCepstrums);
+		return;
+	}
+
+	public GaussianMixture trainGMM(LinkedList<ArrayList<double[]>> featuresByFrameByWindow) {
+		GaussianMixture gmm = null;
+		PointList pl = new PointList(NUMBER_OF_FINAL_FEATURES);
+
+
+		PrintWriter csvWriter;
+		try
+		{
+
+			File file = new File("/sdcard/mfccsLouis90s.csv");
+			if(!file.exists()){
+				file = new File("/sdcard/mfccsLouis90s.csv");
+			}
+			csvWriter = new  PrintWriter(new FileWriter(file,true));
+
+			for (ArrayList<double[]> window : featuresByFrameByWindow) {
+				for (double[] featuresByFrame : window) {
+					pl.add(featuresByFrame);
+					for (double d : featuresByFrame) {
+						csvWriter.print(d + ",");
+					}
+					csvWriter.print("\r\n");
+				}
+			}
+
+			csvWriter.close();
+
+
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+		
+		return null;
+/*
+
+		for (ArrayList<double[]> window : featuresByFrameByWindow) {
+			for (double[] featuresByFrame : window) {
+				pl.add(featuresByFrame);
+			}
+		}
+
+		try
+		{
+			//run k-means clustering algorithm to initialize the EM algorithem
+			KMeansClustering kmeans = new KMeansClustering(GMM_NUM_COMPONENTS, pl, false);
+			kmeans.run();
+
+			//run EM algorithem for gaussian mixture model
+			gmm = new GaussianMixture(kmeans.getClusterWeights(), kmeans.getMeans(), kmeans.getFullCovariances());
+			gmm.runEM(pl);
+		}
+		catch(CovarianceSingularityException cse)
+		{
+			//try to do the whole stuff once more with the corrected pointset
+			try
+			{
+				//run k-means clustering algorithm to initialize the EM algorithem
+				KMeansClustering kmeans = new KMeansClustering(GMM_NUM_COMPONENTS, cse.getCorrectedPointList(), false);
+				kmeans.run();
+
+				//run EM algorithem for gaussian mixture model
+				gmm = new GaussianMixture(kmeans.getClusterWeights(), kmeans.getMeans(), kmeans.getFullCovariances());
+				gmm.runEM(cse.getCorrectedPointList());
+			}
+			catch(CovarianceSingularityException cse2)
+			{
+				//well at this point we give up, we don't try further
+				throw new IllegalArgumentException("cannot create GMM for this training set");
+			}
+		}
+
+		return gmm;*/
+	}
+
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		setContentView(R.layout.activity_main);
+	}
+
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		// Inflate the menu; this adds items to the action bar if it is present.
+		getMenuInflater().inflate(R.menu.main, menu);
+		return true;
+	}
+
+}

@@ -1,0 +1,423 @@
+package tum.laser.voicerecognizer;
+
+import java.io.BufferedOutputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedList;
+
+import android.media.AudioFormat;
+import android.media.AudioRecord;
+import android.media.MediaRecorder;
+import android.os.Bundle;
+import android.os.Environment;
+import android.app.Activity;
+import android.util.Log;
+import android.view.Menu;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.Switch;
+
+/**
+ * VoiceRecognizer
+ * A speech processor for the Android plattform.
+ * 
+ * @author Florian Schulze, schulze@in.tum.de, 2013
+ * 
+ *
+ * contains code taken from:
+ * 
+ * Funf: Open Sensing Framework
+ * Copyright (C) 2010-2011 Nadav Aharony, Wei Pan, Alex Pentland.
+ * Acknowledgments: Alan Gardner
+ * Contact: nadav@media.mit.edu
+ */
+public class MainActivity extends Activity {
+
+	private static String APP_NAME = "VoiceRecognizer";
+
+	private static int RECORDER_SOURCE = MediaRecorder.AudioSource.VOICE_RECOGNITION;
+	private static int RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
+	private static int RECORDER_AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT;
+	private static int RECORDER_SAMPLERATE = 8000;
+	
+	private static int DEFAULT_NO_SAMPLES = 2880;
+
+	private static int FFT_SIZE = 512;
+	//8000samples/s divided by 256samples/frame -> 32ms/frame (31.25ms)
+	private static int FRAME_SIZE = 256; //frame size in #samples
+
+	//32ms/frame times 64frames/window = 2s/window
+	private static int WINDOW_SIZE = 64; //window size in frames
+
+	private static int MFCCS_VALUE = 20;
+	private static int NUMBER_OF_FINAL_FEATURES = MFCCS_VALUE - 1; //discard energy
+	private static int MEL_BANDS = 20; //use FB-20
+	private static double[] FREQ_BANDEDGES = {50,250,500,1000,2000};
+
+	private int bufferSize = 0;
+
+	private static int[] freqBandIdx = null;
+	public double[] featureBuffer = null;
+
+	private Thread recordingThread = null;
+	private FFT featureFFT = null;
+	private MFCC featureMFCC = null;
+	private Window featureWin = null;
+	private AudioRecord audioRecorder = null;
+
+	private boolean isRecording = false;
+
+
+	/**
+	 * Start recording audio in a separate thread.
+	 * If the switch in our main view is checked, the audio will be saved in
+	 * a file {@link #storeAudioStream()}. Otherwise we process the stream
+	 * immediately {@link #processAudioStream()}.
+	 */
+	protected void recordAudioFromMic() {
+		synchronized (this) {
+			if (isRecording)
+				return;
+			else
+				isRecording = true;
+		}
+		bufferSize = AudioRecord.getMinBufferSize(
+				RECORDER_SAMPLERATE,
+				RECORDER_CHANNELS,
+				RECORDER_AUDIO_ENCODING);
+
+		bufferSize = Math.max(bufferSize, RECORDER_SAMPLERATE*2);
+		audioRecorder = new AudioRecord(
+				RECORDER_SOURCE,
+				RECORDER_SAMPLERATE,
+				RECORDER_CHANNELS,
+				RECORDER_AUDIO_ENCODING,
+				bufferSize);
+		audioRecorder.startRecording();
+		recordingThread = new Thread(new Runnable()
+		{
+			@Override
+			public void run()
+			{
+				Switch s = (Switch) findViewById(R.id.switchAudio);
+				if (s.isChecked())
+					storeAudioStream();
+				else
+					processAudioStream();
+			}
+		}, APP_NAME + "_Thread");
+		recordingThread.start();
+	}
+
+	
+	/**
+	 * Stop recording. Kills off any ongoing recording.
+	 */
+	protected void stopRecording() {
+		synchronized (this) {
+			if (!isRecording)
+				return;
+			else
+				isRecording = false;
+		}
+
+		audioRecorder.stop();
+		audioRecorder.release();
+		audioRecorder = null;
+		recordingThread = null;
+	}
+
+	@Override
+	protected void onStop() {
+		super.onStop();
+		//stopRecording();
+	}
+	
+
+	//TODO: drop frames without speech -> speakersense
+	//TODO: cepstral mean normalization -> overview paper
+	//TODO: augment features with derivatives -> overview paper
+
+	/**
+	 * Reads from {@link #audioRecorder} and processes the stream.
+	 * For that, it cuts the stream into chunks (frames) which are
+	 * processed individually in
+	 * {@link #processAudioFrame(int, short[], double[], double[])}
+	 * to obtain feature vectors.
+	 * Features of multiple frames are then bundled to feature windows
+	 * which represent speech utterances.
+	 */
+	private void processAudioStream()
+	{
+		short dataFrame16bit[] = new short[FRAME_SIZE];
+
+		//initialize general processing data
+		featureWin = new Window(FRAME_SIZE); //smoothing window, nothing to do with frame window
+		featureFFT = new FFT(FFT_SIZE);
+		featureMFCC = new MFCC(FFT_SIZE, MFCCS_VALUE, MEL_BANDS, RECORDER_SAMPLERATE);
+
+		freqBandIdx = new int[FREQ_BANDEDGES.length];
+		for (int i = 0; i < FREQ_BANDEDGES.length; i ++)
+		{
+			freqBandIdx[i] = Math.round((float)FREQ_BANDEDGES[i]*((float)FFT_SIZE/(float)RECORDER_SAMPLERATE));
+		}
+
+		//lists of windows
+		LinkedList<ArrayList<double[]>> featureCepstrums = new LinkedList<ArrayList<double[]>>();
+		LinkedList<ArrayList<double[]>> psdsAcrossFrequencyBands = new LinkedList<ArrayList<double[]>>();
+
+		//windows: list of frames
+		ArrayList<double[]> cepstrumWindow = null;
+		ArrayList<double[]> psdWindow = null;
+
+		int readAudioSamples = 0;
+		int currentIteration = 0;
+
+		String editText = ((EditText) findViewById(R.id.editTextSamples)).getText().toString();
+		int samplesToTake = (editText != null && !editText.isEmpty())
+				? Integer.parseInt(editText) : DEFAULT_NO_SAMPLES;
+
+		while (currentIteration < samplesToTake) //960 = 15*64 -> 15*2s=30s
+		{
+			//combine WINDOW_SIZE consecutive frames to a window
+			//2s with a window size of 64
+			if (currentIteration % WINDOW_SIZE == 0) {
+				cepstrumWindow = new ArrayList<double[]>(WINDOW_SIZE);
+				featureCepstrums.add(cepstrumWindow);
+
+				psdWindow = new ArrayList<double[]>(WINDOW_SIZE);
+				psdsAcrossFrequencyBands.add(psdWindow);
+			}
+
+			currentIteration++;
+
+			// read() kann entweder mind. buffer_size/2 zeichen zurückliefern
+			// (wir brauchen viel weniger) oder blockiert:
+			// http://stackoverflow.com/questions/15804903/android-dev-audiorecord-without-blocking-or-threads
+			synchronized (this) {
+				if (isRecording)
+					readAudioSamples = audioRecorder.read(dataFrame16bit, 0, FRAME_SIZE);
+				else
+				{
+					//we only get here in case the user kills us off early
+					//remove last window as it's incomplete
+					featureCepstrums.removeLast();
+					audioFeatures2csv(featureCepstrums, "features.csv");
+					return;
+				}
+			}
+
+			if (readAudioSamples == 0)
+				return;
+
+			double[] psdAcrossFrequencyBands = new double[FREQ_BANDEDGES.length - 1];
+			double[] featureCepstrum = new double[MFCCS_VALUE-1];
+
+			processAudioFrame(readAudioSamples, dataFrame16bit, psdAcrossFrequencyBands, featureCepstrum);
+			// Add PSDs of this frame to our window
+			psdWindow.add(psdAcrossFrequencyBands);
+			// Add MFCCs of this frame to our window
+			cepstrumWindow.add(featureCepstrum);
+		}
+
+		audioFeatures2csv(featureCepstrums, "features.csv");
+		return;
+	}
+
+
+	/**
+	 * Takes an audio frame and processes it:
+	 * 1. Applies a Hamming smoothing window
+	 * 2. Computes the FFT
+	 * 3. Computes the Power Spectral Density for each frequency band
+	 * 4. Computes the MFC coefficients
+	 * 
+	 * @param samples Number of samples in this frame (should be static)
+	 * @param dataFrame16bit Array of samples
+	 * @param psdAcrossFrequencyBands Array in which to store PSDs
+	 * @param featureCepstrum Array in which to store MFCCs
+	 * 
+	 * based on code of Funf's AudioFeaturesProbe class
+	 * 
+	 * Funf: Open Sensing Framework
+	 * Copyright (C) 2010-2011 Nadav Aharony, Wei Pan, Alex Pentland.
+	 * Acknowledgments: Alan Gardner
+	 * Contact: nadav@media.mit.edu
+	 */
+	public void processAudioFrame(int samples, short dataFrame16bit[], double[] psdAcrossFrequencyBands, double[] featureCepstrum) {
+		double fftBufferR[] = new double[FFT_SIZE];
+		double fftBufferI[] = new double[FFT_SIZE];
+
+		// Frequency analysis
+		Arrays.fill(fftBufferR, 0);
+		Arrays.fill(fftBufferI, 0);
+
+		// Convert audio buffer to doubles
+		for (int i = 0; i < samples; i++)
+		{
+			fftBufferR[i] = dataFrame16bit[i];
+		}
+
+		// In-place windowing
+		featureWin.applyWindow(fftBufferR);
+
+		// In-place FFT
+		featureFFT.fft(fftBufferR, fftBufferI);
+
+		// Get PSD across frequency band ranges
+		for (int i = 0; i < (FREQ_BANDEDGES.length - 1); i ++)
+		{
+			int j = freqBandIdx[i];
+			int k = freqBandIdx[i+1];
+			double accum = 0;
+
+			for (int h = j; h < k; h ++)
+				accum += fftBufferR[h]*fftBufferR[h] + fftBufferI[h]*fftBufferI[h];
+
+			psdAcrossFrequencyBands[i] = accum/((double)(k - j));
+		}
+
+		// Get MFCCs
+		double[] featureCepstrumTemp = featureMFCC.cepstrum(fftBufferR, fftBufferI);
+
+		// copy MFCCs
+		for(int i = 1; i < featureCepstrumTemp.length; i++) {
+			//only keep energy-independent features, drop first coefficient
+			featureCepstrum[i-1] = featureCepstrumTemp[i];
+		}
+	}
+
+
+	/**
+	 * Reads from {@link #audioRecorder} and saves the stream to the sdcard.
+	 * 
+	 * based on code snippets taken from from
+	 * http://eurodev.blogspot.de/2009/09/raw-audio-manipulation-in-android.html
+	 */
+	private void storeAudioStream() {
+		File file = new File(Environment.getExternalStorageDirectory().getAbsolutePath() + "/audioStream_.pcm");
+		int suffix = 0;
+
+		while (file.exists())
+			file = new File(Environment.getExternalStorageDirectory().getAbsolutePath() + "/audioStream_copy" + suffix + ".pcm");
+		//file.delete();
+
+		// Create the new file.
+		try {
+			file.createNewFile();
+		} catch (IOException e) {
+			throw new IllegalStateException("Failed to create " + file.toString());
+		}
+
+		try {
+			OutputStream os = new FileOutputStream(file);
+			BufferedOutputStream bos = new BufferedOutputStream(os);
+			DataOutputStream dos = new DataOutputStream(bos);
+
+			short dataFrame16bit[] = new short[FRAME_SIZE];
+			int readAudioSamples = 0;
+			int currentIteration = 0;
+
+			String editText = ((EditText) findViewById(R.id.editTextSamples)).getText().toString();
+			int samplesToTake = (editText != null && !editText.isEmpty())
+					? Integer.parseInt(editText) : DEFAULT_NO_SAMPLES;
+
+			while (currentIteration < samplesToTake) //960 = 15*64 -> 15*2s=30s
+			{
+				synchronized (this) {
+					if (isRecording)
+						readAudioSamples = audioRecorder.read(dataFrame16bit, 0, FRAME_SIZE);
+					else {
+						//we only get here in case the user kills us off early
+						dos.close();
+						return;
+					}
+				}
+
+				if (readAudioSamples == 0)
+					return;
+
+				for (int i = 0; i < readAudioSamples; i++)
+					dos.writeShort(dataFrame16bit[i]);
+			}
+			dos.close();
+		} catch (Throwable t) {
+			Log.e(APP_NAME,"Recording Failed");
+		}
+	}
+
+
+	/**
+	 * Takes a list of windows of frames and stores them in a csv file on the sdcard.
+	 * Each frame is represented by its MFCCs (without energy). Legacy-ish because
+	 * we now store raw audio on the sdcard and do the processing elsewhere.
+	 * 
+	 * @param featuresByFrameByWindow Lists of MFCCs
+	 * @param filename Name of the csv file
+	 */
+	public void audioFeatures2csv(LinkedList<ArrayList<double[]>> featuresByFrameByWindow, String filename) {
+		PointList pl = new PointList(NUMBER_OF_FINAL_FEATURES);
+
+		PrintWriter csvWriter;
+		try
+		{
+			File file = new File(Environment.getExternalStorageDirectory().getAbsolutePath() + "/" + filename);
+			if(!file.exists())
+				file = new File(Environment.getExternalStorageDirectory().getAbsolutePath() + "/" + filename);
+			csvWriter = new  PrintWriter(new FileWriter(file,true));
+
+			for (ArrayList<double[]> window : featuresByFrameByWindow) {
+				for (double[] featuresByFrame : window) {
+					pl.add(featuresByFrame);
+					for (double d : featuresByFrame) {
+						csvWriter.print(d + ",");
+					}
+					csvWriter.print("\r\n");
+				}
+			}
+
+			csvWriter.close();
+
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+	}
+
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		setContentView(R.layout.activity_main);
+
+		final Button buttonStart = (Button) findViewById(R.id.buttonStartRec);
+		buttonStart.setOnClickListener(new View.OnClickListener() {
+			public void onClick(View v) {
+				recordAudioFromMic();
+			}
+		});
+
+		final Button buttonStop = (Button) findViewById(R.id.buttonStopRec);
+		buttonStop.setOnClickListener(new View.OnClickListener() {
+			public void onClick(View v) {
+				stopRecording();
+			}
+		});
+	}
+
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		// Inflate the menu; this adds items to the action bar if it is present.
+		getMenuInflater().inflate(R.menu.main, menu);
+		return true;
+	}
+
+}
