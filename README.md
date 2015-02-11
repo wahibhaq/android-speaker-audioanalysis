@@ -1,4 +1,4 @@
 android-speech-emotionrecognition
 =================================
 
-This is my Masters thesis project in which I am trying to implement Emotion Recognition system on Android using voice of speaker. It involves Speaker recognition in the first place. The two approaches include Online (via server) and Offline (implement everything on android).
+This is my Masters thesis project titled "Speaker Detection and Conversation Analysis on Mobile Devices". I am trying to implement Audio Analysis techniques and Speaker Recognition on Android using machine learning approach to investigate performance, battery usage on phone in offline usage.
