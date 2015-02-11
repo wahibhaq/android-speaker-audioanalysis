@@ -1,0 +1,2 @@
+set solib-search-path ./obj/local/armeabi
+directory /home/falooka/adt-bundle-linux-x86-20130917/android-ndk-r9/platforms/android-14/arch-arm/usr/include /home/falooka/adt-bundle-linux-x86-20130917/android-ndk-r9/sources/cxx-stl/gnu-libstdc++/4.6/include /home/falooka/adt-bundle-linux-x86-20130917/android-ndk-r9/sources/cxx-stl/gnu-libstdc++/4.6/libs/armeabi/include /home/falooka/adt-bundle-linux-x86-20130917/android-ndk-r9/sources/cxx-stl/gnu-libstdc++/4.6/include/backward jni

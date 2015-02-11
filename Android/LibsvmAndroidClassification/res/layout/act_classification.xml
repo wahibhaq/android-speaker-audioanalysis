@@ -1,0 +1,65 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="edu.sinica.citi.mac.android.actclassification.ActClassificationActivity"
+    tools:ignore="MergeRootFrame" >
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" >
+
+        <Button
+            android:id="@+id/btnTrainLibsvm"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentTop="true"
+            android:text="Train (libsvm)"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btnTrainCsv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentLeft="true"
+            android:layout_below="@+id/btnTrainLibsvm"
+            android:text="Train (csv)" />
+
+        <Button
+            android:id="@+id/btnPredictAcc"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentLeft="true"
+            android:layout_below="@+id/btnTrainArray"
+            android:text="Predict (accuracy)" />
+
+        <Button
+            android:id="@+id/btnPredictLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentLeft="true"
+            android:layout_below="@+id/btnPredictAcc"
+            android:text="Predict (label)" />
+
+        <Button
+            android:id="@+id/btnExp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentLeft="true"
+            android:layout_below="@+id/btnPredictLabel"
+            android:text="RunExp" />
+
+        <Button
+            android:id="@+id/btnTrainArray"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentLeft="true"
+            android:layout_below="@+id/btnTrainCsv"
+            android:text="Train (array)" 
+            android:visibility="gone"/>
+
+    </RelativeLayout>
+
+</FrameLayout>
