@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="title_name">VoiceRecognizer-SuperPowered</string>
+    <string name="app_name">VoicR-SP</string>
+    <string name="hello_world">Hello world!</string>
+    
+    <string name="action_addexperiment">Add Experiment</string>
+    <string name="action_resetexperiment">Reset Experiment</string>
+    <string name="action_switchfft">Switch FFT Algorithm</string>
+    
+    
+
+</resources>

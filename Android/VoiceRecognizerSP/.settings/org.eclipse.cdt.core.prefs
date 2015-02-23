@@ -1,0 +1,11 @@
+eclipse.preferences.version=1
+environment/project/0.414051258.731794863.1579892590/NDKROOT/delimiter=\:
+environment/project/0.414051258.731794863.1579892590/NDKROOT/operation=append
+environment/project/0.414051258.731794863.1579892590/NDKROOT/value=/home/falooka/adt-bundle-linux-x86-20130917/android-ndk-r9
+environment/project/0.414051258.731794863.1579892590/append=true
+environment/project/0.414051258.731794863.1579892590/appendContributed=true
+environment/project/com.android.toolchain.gcc.26490411/NDKROOT/delimiter=\:
+environment/project/com.android.toolchain.gcc.26490411/NDKROOT/operation=append
+environment/project/com.android.toolchain.gcc.26490411/NDKROOT/value=/home/falooka/adt-bundle-linux-x86-20130917/android-ndk-r9
+environment/project/com.android.toolchain.gcc.26490411/append=true
+environment/project/com.android.toolchain.gcc.26490411/appendContributed=true
