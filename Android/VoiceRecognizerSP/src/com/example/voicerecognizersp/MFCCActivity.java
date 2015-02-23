@@ -264,6 +264,12 @@ public class MFCCActivity extends Activity {
 		stopRecording();
 	}
 	
+	/**
+	 * singleton method to ensure FileOperations instance remains unique so that constructor is not called more than once
+	 * 
+	 * @param obj
+	 * @return
+	 */
 	public static FileOperations getInstance(MFCCActivity obj) {
         if (instance == null) {
             synchronized (FileOperations.class) {

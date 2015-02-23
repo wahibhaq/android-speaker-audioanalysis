@@ -22,6 +22,7 @@ class FileOperations
 
 
 	private static final File SD_PATH = Environment.getExternalStorageDirectory();
+	private static final String SD_FOLDER_PATH_PARENT = "/Thesis";
 	private static final String SD_FOLDER_PATH = "/Thesis/VoiceRecognizerSP";
 	private static final String SD_FOLDER_PATH_LOGS = SD_FOLDER_PATH + "/Logs"; 
 	public static final String SD_FOLDER_PATH_CSV = SD_FOLDER_PATH + "/CSV"; 
@@ -39,7 +40,7 @@ class FileOperations
 	{
 		activityObj = thisObj;
 		
-		if(checkDirExist())
+		if(checkDirsExist())
 		{
 			//if successfully dir created
 			appendToBatteryFile("____New Experiment____" + activityObj.fftType);
@@ -98,14 +99,17 @@ class FileOperations
 		/**
 		 * To check if Logs Dir exist or if not then create it
 		 */
-		private boolean checkDirExist()
+		private boolean checkDirsExist()
 		{
+			File dirParent = new File(SD_PATH + SD_FOLDER_PATH_PARENT);
 			File dirMain = new File(SD_PATH + SD_FOLDER_PATH);
 			File dirCSV = new File(SD_PATH + SD_FOLDER_PATH_CSV);
 			File dirLogs = new File(SD_PATH + SD_FOLDER_PATH_LOGS);
 			
 			try
 			{
+				if(!dirParent.exists())
+			    	dirParent.mkdir();
 			    if(!dirMain.exists())
 			    	dirMain.mkdir();
 			    if(!dirCSV.exists())
