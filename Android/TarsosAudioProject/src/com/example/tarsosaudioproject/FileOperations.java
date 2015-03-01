@@ -3,7 +3,7 @@
  * 
  */
 
-package com.example.voicerecognizersp;
+package com.example.tarsosaudioproject;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -23,20 +23,20 @@ class FileOperations
 
 	private static final File SD_PATH = Environment.getExternalStorageDirectory();
 	private static final String SD_FOLDER_PATH_PARENT = "/Thesis";
-	private static String SD_FOLDER_PATH = "/Thesis/VoiceRecognizer";
+	private static String SD_FOLDER_PATH = "/Thesis/Tarsos";
 	private static String SD_FOLDER_PATH_LOGS = SD_FOLDER_PATH + "/Logs"; 
 	public static String SD_FOLDER_PATH_CSV = SD_FOLDER_PATH + "/CSV"; 
 
-	final String csvFileName = "20MfccFeatures.csv"; //"20MfccFeatures_";
+	final String csvFileName = "tarsos_mfcc.csv"; 
 	final String batteryFileName = "battery_data.txt";
 	final String memcpuFileName = "memcpu_data.txt";
 
 	final static String TAG = "VoiceRecognizerSP"; //Voice Recognizer with Superpowered functionality
 
-	MainBindingActivity activityObj;
+	BindingActivity activityObj;
 	
 	
-	public FileOperations(MainBindingActivity mainBindingActivity)
+	public FileOperations(BindingActivity mainBindingActivity)
 	{
 		activityObj = mainBindingActivity;
 		
@@ -48,19 +48,12 @@ class FileOperations
 	public void resolveDirs()
 	{
 
-		if(activityObj.getFFTType().equals("FFT_CT"))
-			SD_FOLDER_PATH = "/Thesis/VoiceRecognizer";
-		else if(activityObj.getFFTType().equals("FFT_SP"))
-			SD_FOLDER_PATH = "/Thesis/VoiceRecognizerSP";
-		
-		SD_FOLDER_PATH_LOGS = SD_FOLDER_PATH + "/Logs"; 
-		SD_FOLDER_PATH_CSV = SD_FOLDER_PATH + "/CSV"; 
 
 		if(checkDirsExist())
 		{
 			//if successfully dir created
-			appendToBatteryFile("____New Experiment____" + activityObj.getFFTType());
-			appendToMemCpuFile("____New Experiment____" + activityObj.getFFTType());
+			appendToBatteryFile("____New Experiment____");
+			appendToMemCpuFile("____New Experiment____");
 		}
 		
 	}

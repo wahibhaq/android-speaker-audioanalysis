@@ -6,8 +6,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -78,11 +76,11 @@ public class MFCCActivity extends Activity {
 	private static int RECORDER_AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT;
 	private static int RECORDER_SAMPLERATE = 16000; //16Hz frequency 
 
-	private static int WINDOWS_TO_RECORD = 4;
+	//private static int WINDOWS_TO_RECORD = 4;
 
-	private static int FFT_SIZE = 512;
+	private static int FFT_SIZE = 512; //512 = default;
 	//8000samples/s divided by 256samples/frame -> 32ms/frame (31.25ms)
-	private static int FRAME_SIZE_IN_SAMPLES = 512;
+	private static int FRAME_SIZE_IN_SAMPLES = 512; //512 = default value;
 
 	//32ms/frame times 64frames/window = 2s/window
 	private static int WINDOW_SIZE_IN_FRAMES = 64;
@@ -108,7 +106,7 @@ public class MFCCActivity extends Activity {
 	private static int DROP_FIRST_X_WINDOWS = 1;
 	
 	//variabled added later by Wahib
-	final double windowsToRead = 2.5; //audio file duration in seconds
+	final double windowsToRead = 10;//2.5; //audio file duration in seconds
 	public static final File SD_PATH = Environment.getExternalStorageDirectory();
 	public static final String SD_FOLDER_PATH = "/Thesis/VoiceRecognizerSP";
 	public static final String SD_FOLDER_PATH_CSV = SD_FOLDER_PATH + "/CSV"; 
@@ -117,9 +115,9 @@ public class MFCCActivity extends Activity {
 	static Runnable repeatRecordRunnable = null;
 	Thread repeatRecordThread = null;
 	
-	private final int RECORDING_REPEAT_CYCLE = 10000; //1000 = 10 seconds
+	//private final int RECORDING_REPEAT_CYCLE = 10000; //1000 = 10 seconds
 	static int cycleCount = 0;
-	final int maxCycleCount = 100; //use it to set total time to run; total time (sec) = maxCycleCount * RECORDING_REPEAT_CYCLE
+	//final int maxCycleCount = 100; //use it to set total time to run; total time (sec) = maxCycleCount * RECORDING_REPEAT_CYCLE
 	final String csvFileName = "20MfccFeatures.csv"; //"20MfccFeatures_";
 
 	final static String TAG = "VoiceRecognizerSP"; //Voice Recognizer with Superpowered functionality
@@ -133,7 +131,7 @@ public class MFCCActivity extends Activity {
 	
 	/////////////////Superpowered /////////
 	
-	public static final int logSize = 9; //2^9 = 512 = FFTSize
+	public static final int logSize = 8; //9; //2^9 = 512 = FFTSize
 	public static final boolean ifReal = true;  //We are using FFT-in-Place 
 	public static final boolean ifForward = false;
 	
@@ -270,10 +268,11 @@ public class MFCCActivity extends Activity {
 	 * @param obj
 	 * @return
 	 */
+	//http://howtodoinjava.com/2012/10/22/singleton-design-pattern-in-java/
 	public static FileOperations getInstance(MFCCActivity obj) {
         if (instance == null) {
             synchronized (FileOperations.class) {
-                instance = new FileOperations(obj);
+                //instance = new FileOperations(obj);
             }
         }
         return instance;
@@ -412,11 +411,9 @@ public class MFCCActivity extends Activity {
 
 		//lists of windows
 		LinkedList<ArrayList<double[]>> featureCepstrums = new LinkedList<ArrayList<double[]>>();
-		LinkedList<ArrayList<double[]>> psdsAcrossFrequencyBands = new LinkedList<ArrayList<double[]>>();
 
 		//windows: list of frames
 		ArrayList<double[]> cepstrumWindow = new ArrayList<double[]>(WINDOW_SIZE_IN_FRAMES);
-		ArrayList<double[]> psdWindow = new ArrayList<double[]>(WINDOW_SIZE_IN_FRAMES);
 
 		int readAudioSamples = 0;
 		int currentIteration = 0;
@@ -426,7 +423,7 @@ public class MFCCActivity extends Activity {
     	Log.i(TAG, "MFCC processAudioStream() Staring to Record !");
 		//monitorCpuUsage();
 
-    	//analysing and extracting MFCC features in a 30 sec frame
+    	//analysing and extracting MFCC features in a 30 sec frame. WINDOW_SIZE_IN_FRAMES here refers to 2 sec
 		while (currentIteration < windowsToRead * WINDOW_SIZE_IN_FRAMES) //960 = 15*64 -> 15*2s=30s
 		{
 
@@ -484,18 +481,18 @@ public class MFCCActivity extends Activity {
 				cepstrumWindow = new ArrayList<double[]>(WINDOW_SIZE_IN_FRAMES);
 				featureCepstrums.add(cepstrumWindow);
 
-				psdWindow = new ArrayList<double[]>(WINDOW_SIZE_IN_FRAMES);
-				psdsAcrossFrequencyBands.add(psdWindow);
+				
 			}
 			
 			currentIteration++;
 			
-			// Add PSDs of this frame to our window
-			psdWindow.add(freq.getPsdAcrossFrequencyBands());
+		
 			// Add MFCCs of this frame to our window
 			cepstrumWindow.add(freq.getFeatureCepstrum());
 			
 			//monitorCpuUsage();
+
+	    	Log.i(TAG, "MFCC recording cycle : " + currentIteration);
 
 		}
 
@@ -548,7 +545,6 @@ public class MFCCActivity extends Activity {
 		double fftBufferR[] = new double[FFT_SIZE];
 		double fftBufferI[] = new double[FFT_SIZE];
 	
-		double[] psdAcrossFrequencyBands = new double[FREQ_BANDEDGES.length - 1];
 		double[] featureCepstrum = new double[MFCCS_VALUE-1];
 		
 
@@ -594,28 +590,13 @@ public class MFCCActivity extends Activity {
 		//featureFFT.fft(fftBufferR, fftBufferI);
 		//onFFTReal(convertDoublesToFloats(fftBufferR), convertDoublesToFloats(fftBufferI), logSize, ifForward);
 		
-		if (dropIfBad && !isFrameAdmittedBySpectralEntropy(fftBufferR, fftBufferI))
-			return null;
-
-		// Get PSD across frequency band ranges
-		for (int i = 0; i < (FREQ_BANDEDGES.length - 1); i ++)
-		{
-			int j = freqBandIdx[i];
-			int k = freqBandIdx[i+1];
-			double accum = 0;
-
-			for (int h = j; h < k; h ++)
-				accum += fftBufferR[h]*fftBufferR[h] + fftBufferI[h]*fftBufferI[h];
-
-			psdAcrossFrequencyBands[i] = accum/((double)(k - j));
-		}
+		
 		
 		FrequencyProperties freq = new FrequencyProperties();
 		
 		freq.setFftImag(fftBufferI);
 		freq.setFftReal(fftBufferR);
 		freq.setFeatureCepstrum(featureCepstrum);
-		freq.setPsdAcrossFrequencyBands(psdAcrossFrequencyBands);
 
 		// Get MFCCs
 		double[] featureCepstrumTemp = featureMFCC.cepstrum(fftBufferR, fftBufferI);
@@ -644,67 +625,13 @@ public class MFCCActivity extends Activity {
 	    }
 	    return output;
 	}
+	
 	public double getRMS(short[] buffer) {
 		double rms = 0;
 		for (int i = 0; i < buffer.length; i++) {
 			rms += buffer[i] * buffer[i];
 		}
 		return Math.sqrt(rms / buffer.length);
-	}
-
-
-	//TODO entropy for individual subbands
-	//http://www.ee.uwa.edu.au/~roberto/research/theses/tr05-01.pdf
-	//TODO double overflow? BigDecimal ok?
-
-	/**
-	 * Spectral entropy is calculated as
-	 *
-	 * 1) Normalize the power spectrum:
-	 * Q(f)=P(f)/sum(P(f))  (where P(f) is the power spectrum)
-	 * 
-	 * 2) Transform with the Shannon function:
-	 * H(f)=Q(f)[log(1/Q(f))]
-	 * 
-	 * 3) Spectral entropy:
-	 * E=sum(H(f))/log(Nf)  (where Nf is the number of frequency components.
-	 * 
-	 * http://www.scielo.br/scielo.php?pid=S0034-70942004000300013&script=sci_arttext&tlng=en
-	 * 
-	 * @param fftReal
-	 * @param fftImag
-	 * @return
-	 * 
-	 * v1.1 Fixed "Non-terminating decimal expansion" error in divide()
-	 *      by providing desired precision and rounding mode
-	 */
-	public static double getSpectralEntropy(double[] fftReal, double[] fftImag) {
-		BigDecimal intensities[] = new BigDecimal[fftReal.length];
-		BigDecimal sumOfIntensities = new BigDecimal(0d);
-		double entropy = 0;
-		
-		try {
-			//iterate over frequencies, compute intensities and overall sum of intensities
-			for (int f = 0; f < fftReal.length; f++) {
-				intensities[f] = new BigDecimal(fftReal[f]*fftReal[f] + fftImag[f]*fftImag[f]);
-				sumOfIntensities = sumOfIntensities.add(intensities[f]);
-			}
-	
-			for (BigDecimal intensity : intensities) {
-				//normalize so that sum(p)=1 in order to get PMF
-				BigDecimal p = intensity.divide(sumOfIntensities, 10, RoundingMode.HALF_UP);
-				//only consider frequencies with p(f)>0
-				if (p.compareTo(BigDecimal.ZERO) != 0) {
-					entropy += p.doubleValue() * Math.log(p.doubleValue()) / Math.log(2);
-				}
-			}
-			entropy *= -1;
-			//optional: normalize
-			entropy /= fftReal.length;
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		return entropy;
 	}
 
 
@@ -719,11 +646,6 @@ public class MFCCActivity extends Activity {
 		return true;
 	}
 
-	public boolean isFrameAdmittedBySpectralEntropy(double[] fftReal, double[] fftImag) {
-		//if (getSpectralEntropy(fftReal,fftImag) > 0.5)
-		//	return false;
-		return true;
-	}
 	
 	
 	/**
