@@ -1,15 +1,18 @@
 package com.example.tarsosaudioproject;
 
+import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Locale;
 
 import android.app.Activity;
+import android.app.ActivityManager;
+import android.app.ActivityManager.RunningAppProcessInfo;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -20,9 +23,6 @@ import android.os.BatteryManager;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.IBinder;
-import android.os.Message;
-import android.os.Messenger;
-import android.os.RemoteException;
 import android.support.v4.content.LocalBroadcastManager;
 import android.text.format.DateFormat;
 import android.util.Log;
@@ -31,9 +31,9 @@ import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
-import be.tarsos.dsp.io.android.AudioDispatcherFactory;
 
 import com.example.tarsosaudioproject.RecordingMfccService.LocalBinder;
+
 
 
 
@@ -46,19 +46,42 @@ public class BindingActivity extends Activity {
 	Button btnStartRecording, btnStopRecording;
 	TextView txtMessage;
 	final static String TAG = "MFCCBindingActivity";
+    private static final String appProcessName = "com.example.tarsosaudioproject";
 
 	BroadcastReceiver receiver;
 	
 	final static String Thesis_Tarsos_CSV_PATH = "Thesis/Tarsos/CSV";
-	final static String Thesis_Tarsos_Logs_PATH = "Thesis/Tarsos/Logs";
+	//final static String Thesis_Tarsos_Logs_PATH = "Thesis/Tarsos/Logs";
 	final static String csvFileName = "tarsos_mfcc.csv";
-	final String batteryFileName = "battery_data.txt";
+	//final String batteryFileName = "battery_data.txt";
+	
+	FileOperations fileOprObj;
+	 static volatile FileOperations instance = null;
+	 
+
+		/**
+		 * singleton method to ensure FileOperations instance remains unique so that constructor is not called more than once
+		 * 
+		 * @param mainBindingActivity
+		 * @return
+		 */
+		//http://howtodoinjava.com/2012/10/22/singleton-design-pattern-in-java/
+		public static FileOperations getInstance(BindingActivity mainBindingActivity) {
+	        if (instance == null) {
+	            synchronized (FileOperations.class) {
+	                instance = new FileOperations(mainBindingActivity);
+	            }
+	        }
+	        return instance;
+	    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_mfcc);
-        
+
+        fileOprObj = getInstance(this);
+
     	btnStartRecording = (Button)findViewById(R.id.btnStartRecording);
 		btnStopRecording = (Button)findViewById(R.id.btnStopRecording);
 		txtMessage = (TextView) findViewById(R.id.txtMessage);
@@ -81,7 +104,10 @@ public class BindingActivity extends Activity {
 					
 					mService.initDispatcher();
 
-					monitorBatteryUsage();
+					//monitorBatteryUsage();
+
+					monitorBatteryUsage("Start");
+	        		monitorCpuAndMemoryUsage("Start");
 
 					mService.startMfccExtraction();
 					mService.startPitchDetection();
@@ -146,8 +172,9 @@ public class BindingActivity extends Activity {
 	            	mService.stopDispatcher();
 	            	
 	            	txtMessage.setText("Recording stopped !");
-					monitorBatteryUsage();
-					
+					//monitorBatteryUsage();
+	            	monitorBatteryUsage("End  ");
+			    	monitorCpuAndMemoryUsage("End  ");
 					
 					// storing to csv done on a separate thread
 				    Runnable runnable = new Runnable() {
@@ -241,34 +268,27 @@ public class BindingActivity extends Activity {
     }
     */
     
-    /*
-    @Override
-    protected void onStart() {
-        super.onStart();
-    	Log.i(TAG, "onStart");
-
-        // Bind to LocalService
-        Intent intent = new Intent(this, RecordingMfccService.class);
-        bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
-    }
-    
-    */
+   
 
     @Override
     protected void onStop() {
         super.onStop();
     	Log.i(TAG, "onStop");
 
-    	/*
-        // Unbind from the service
-        if (isBound) {
-            unbindService(mConnection);
-            isBound = false;
-        }
-        */
+    	
     }
 	
-    
+
+	public void showToast(final String text) {
+		runOnUiThread(new Runnable() 
+		{                
+			@Override
+			public void run() 
+			{
+				Toast.makeText(getApplicationContext(), text, Toast.LENGTH_SHORT).show();
+			}
+		});
+	}
 
     /** Defines callbacks for service binding, passed to bindService() */
     private ServiceConnection mConnection = new ServiceConnection() {
@@ -372,7 +392,7 @@ public class BindingActivity extends Activity {
 		});
     }
     
-    
+    /*
   //http://androidtrainningcenter.blogspot.de/2013/09/android-battery-management-api-getting.html
   		//http://virtuallyhyper.com/2012/12/find-out-battery-status-of-rooted-andoid-phone-using-adb/
   		private void monitorBatteryUsage()
@@ -453,6 +473,193 @@ public class BindingActivity extends Activity {
 
 
 			}
+			
+			*/
+    
+
+	/**
+	 * Function computes "Total Private Dirty Memory" consumed by this application only.
+	 * @return
+	 */
+	private String getMemoryUsage()
+	{
+		Context context = getApplicationContext();
+		ActivityManager mgr = (ActivityManager)context.getSystemService(ACTIVITY_SERVICE);
+		String totalPrivateDirtyMemory = "";
+		
+		for(RunningAppProcessInfo processInfo : mgr.getRunningAppProcesses())
+		{
+			
+	        if(processInfo.processName.equals(appProcessName) ){
+	        	//Log.i(TAG, " MFCC pid: "+processInfo.pid);                    
+			    int[] pids = new int[1];
+			    pids[0] = processInfo.pid;
+			    android.os.Debug.MemoryInfo[] MI = mgr.getProcessMemoryInfo(pids);
+	     	    Log.i(TAG,"MFCC total private dirty memory (KB): " + MI[0].getTotalPrivateDirty());
+	     	    
+	     	    
+	     	    totalPrivateDirtyMemory = String.valueOf(MI[0].getTotalPrivateDirty());
+			    
+			    break;
+	        }
+	    }
+		
+		return totalPrivateDirtyMemory;
+	
+	    
+	    
+	}
+	
+	/**
+	 * uses linux "top" command to fetch cpu percentage value which shows how much this app is
+	 * contributing to total cpu usage
+	 * 
+	 * @return
+	 */
+	//http://m2catalyst.com/tutorial-finding-cpu-usage-for-individual-android-apps/ 
+	private String getCpuUsage()
+	{
+		ArrayList<String> list = new ArrayList<String>();
+		String cpuUsageValue = "";
+
+		Process p = null;
+		try {
+			
+			p = Runtime.getRuntime().exec(new String[] { "sh", "-c", "top -n 1 | grep " + appProcessName });
+			
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+				
+		BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()));
+		
+		int i =0;
+		String line = "";
+		try {
+			
+			line = reader.readLine();
+			
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		
+		//while(line != null)
+		if(line != null)
+		{
+			//Log.i(TAG, "MFCC output of top command : " + i + " : " + line);
+			//11203  0   0% S    13 901560K  43528K  fg u0_a141  tum.laser.voicerecognizer
+
+			String lineOuput[] = line.split(" ");
+			cpuUsageValue = lineOuput[5].trim();
+			//[19472, , 0, , , 0%, S, , , , 15, 904664K, , 44148K, , fg, u0_a141, , tum.laser.voicerecognizer]
+			
+			Log.i(TAG, "MFCC cpu usage value : " + cpuUsageValue);
+
+			list.add(line);
+			try {
+				line = reader.readLine();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			i++;
+		}
+		else
+		{
+			Log.i(TAG, "MFCC command line is null");
+
+		}
+		
+		return cpuUsageValue;
+		
+		
+	}
+    
+    /**
+	 * Function to monitor CPU usage and Memory allocation solely due to this application.
+	 * Its called at start and end of experiment
+	 * 
+	 * @param state : 3 types of states right now. AddExperiement/Start/End which reflects state of experiment.
+	 * Add Experiment just append a new line with title so that its easir to read txt file
+	 */
+	private void monitorCpuAndMemoryUsage(String state)
+	{
+		String line = "";
+		
+		if(state.equals("AddExperiment"))
+		{
+			line = "\n\n\n____New Experiment____";
+			fileOprObj.appendToMemCpuFile( line );
+			
+		}
+		else
+		{
+			//In case of Start and End
+			
+			line = "CPU Usage % : " + getCpuUsage() + " & " + "Memory (Private Dirty in KBs) : " + getMemoryUsage();
+			fileOprObj.appendToMemCpuFile( state + " --- " + line + " --- " + getFormattedTimeStamp() );
+		}
+		
+		
+
+	}
+	
+	/**
+	 * Function to monitor Battery usage due to this application. Its called at start and end of experiment
+	 *
+	 * @param state : 3 types of states right now. AddExperiement/Start/End which reflects state of experiment.
+	 * Add Experiment just append a new line with title so that its easir to read txt file
+	 */
+	//http://androidtrainningcenter.blogspot.de/2013/09/android-battery-management-api-getting.html
+	//http://virtuallyhyper.com/2012/12/find-out-battery-status-of-rooted-andoid-phone-using-adb/
+	private void monitorBatteryUsage(String state)
+	{
+		String line = "";
+		
+		if(state.equals("AddExperiment"))
+		{
+			line = "\n\n\n____New Experiment____";
+			fileOprObj.appendToBatteryFile( line );
+
+		}
+		else
+		{
+		  IntentFilter mIntentFilter = new IntentFilter();  
+          mIntentFilter.addAction(Intent.ACTION_BATTERY_LOW);  
+          mIntentFilter.addAction(Intent.ACTION_BATTERY_CHANGED);  
+          mIntentFilter.addAction(Intent.ACTION_BATTERY_OKAY);  
+          Intent batteryIntent = registerReceiver(null, mIntentFilter);  
+          float batteryLevel = getBatteryLevel(batteryIntent);  
+          Log.i(TAG, "MFCC Battery Level : " + String.valueOf(batteryLevel));  
+          
+          fileOprObj.appendToBatteryFile(state + " --- " + String.valueOf(batteryLevel) + " --- " + getFormattedTimeStamp());
+		}
+          
+	}
+	
+	 public float getBatteryLevel(Intent batteryIntent) {  
+         int level = batteryIntent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);  
+         int scale = batteryIntent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);  
+         if (level == -1 || scale == -1) {  
+              return 50.0f;  
+         }  
+         return ((float) level / (float) scale) * 100.0f;  
+    }  
+	 
+	 private String getFormattedTimeStamp() {
+
+		  	Long tsLong = System.currentTimeMillis();
+
+		    Calendar cal = Calendar.getInstance(Locale.ENGLISH);
+		    cal.setTimeInMillis(tsLong);
+		    String date = DateFormat.format("dd-MM-yyyy_HH:mm:ss", cal).toString();
+		    return date;
+		}
+	
+
 
 		
 

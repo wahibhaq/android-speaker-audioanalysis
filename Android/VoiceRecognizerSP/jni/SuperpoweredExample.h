@@ -35,7 +35,7 @@ public:
 	void onFxOff();
 	void onFxValue(int value);
 
-	//void onFFT(float *real, float *imag);
+	//added by wahib
 	void onFFTReal(JNIEnv *env, jobject obj, jfloatArray real, jfloatArray imag, int logSize, bool ifForward);
 	void onFFTPrepare(int logSize, bool ifReal);
 

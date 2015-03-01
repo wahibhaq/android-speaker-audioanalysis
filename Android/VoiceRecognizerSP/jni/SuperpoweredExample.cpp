@@ -197,7 +197,7 @@ void SuperpoweredExample::onFxValue(int ivalue) {
 }*/
 
 void SuperpoweredExample::onFFTPrepare(int logSize, bool ifReal) {
-	//__android_log_print(ANDROID_LOG_VERBOSE, "SuperpoweredExample", "native onFFTPrepare called");
+	__android_log_print(ANDROID_LOG_VERBOSE, "SuperpoweredExample", "native onFFTPrepare called");
 
 	 SuperpoweredFFTPrepare(logSize, ifReal);
 
@@ -271,9 +271,8 @@ extern "C" {
 	JNIEXPORT void Java_com_example_voicerecognizersp_SuperPoweredExActivity_onFxOff(JNIEnv *javaEnvironment, jobject self);
 	JNIEXPORT void Java_com_example_voicerecognizersp_SuperPoweredExActivity_onFxValue(JNIEnv *javaEnvironment, jobject self, jint value);
 
-	JNIEXPORT void Java_com_example_voicerecognizersp_MFCCActivity_onFFTPrepare(JNIEnv *env, jobject self, int logSize, bool ifReal);
-	//JNIEXPORT void Java_com_example_voicerecognizersp_MFCCActivity_onFFT(JNIEnv *javaEnvironment, jobject self, jfloat *real, jfloat *imag);
-	JNIEXPORT void Java_com_example_voicerecognizersp_MFCCActivity_onFFTReal(JNIEnv *env, jobject self, jfloatArray real, jfloatArray imag, int logSize, bool ifForward);
+	JNIEXPORT void Java_com_example_voicerecognizersp_RecordingMfccService_onFFTPrepare(JNIEnv *env, jobject self, int logSize, bool ifReal);
+	JNIEXPORT void Java_com_example_voicerecognizersp_RecordingMfccService_onFFTReal(JNIEnv *env, jobject self, jfloatArray real, jfloatArray imag, int logSize, bool ifForward);
 
 }
 
@@ -314,11 +313,10 @@ JNIEXPORT void Java_com_example_voicerecognizersp_SuperPoweredExActivity_onFxVal
 }
 
 //wahib
-JNIEXPORT void Java_com_example_voicerecognizersp_MFCCActivity_onFFTPrepare(JNIEnv *env, jobject self, int logSize, bool ifReal){
+JNIEXPORT void Java_com_example_voicerecognizersp_RecordingMfccService_onFFTPrepare(JNIEnv *env, jobject self, int logSize, bool ifReal){
 	example->onFFTPrepare(logSize, ifReal);
 }
 
-//JNIEXPORT void Java_com_example_voicerecognizersp_MFCCActivity_onFFT(JNIEnv *javaEnvironment, jobject self, jfloat *real, jfloat *imag) {
-JNIEXPORT void Java_com_example_voicerecognizersp_MFCCActivity_onFFTReal(JNIEnv *env, jobject self, jfloatArray real, jfloatArray imag, int logSize, bool ifForward) {
+JNIEXPORT void Java_com_example_voicerecognizersp_RecordingMfccService_onFFTReal(JNIEnv *env, jobject self, jfloatArray real, jfloatArray imag, int logSize, bool ifForward) {
 	example->onFFTReal(env, self, real,imag, logSize, ifForward);
 }

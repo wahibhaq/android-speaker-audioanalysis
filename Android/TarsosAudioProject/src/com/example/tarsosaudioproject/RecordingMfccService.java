@@ -26,8 +26,7 @@ public class RecordingMfccService extends Service {
     // Binder given to clients
     private final IBinder mBinder = new LocalBinder();
     
-    // Random number generator
-    private final Random mGenerator = new Random();
+   
     private String TAG = "MFCCService";
     
 
@@ -69,11 +68,6 @@ public class RecordingMfccService extends Service {
 
     }
     
-    /*
-    private void runOnUiThread(Runnable runnable) {
-        handler.post(runnable);
-    }
-    */
     
     /**
      * Class used for the client Binder.  Because we know this service always
@@ -255,22 +249,6 @@ public class RecordingMfccService extends Service {
 	    broadcaster.sendBroadcast(intent);
 	}
     
-    /** method for clients */
-    public int getRandomNumber() {
-      return methodTwo();
-    }
-    
- // Methods used by the binding client components
-    
-    public boolean methodOne() {
-        // Some code...
-    	return mGenerator.nextBoolean();
-    }
-     
-    public int methodTwo() {
-        // Some code...
-    	return mGenerator.nextInt(100);
-    }
     
     
     
