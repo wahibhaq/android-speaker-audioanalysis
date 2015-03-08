@@ -27,9 +27,12 @@ package com.example.voicerecognizersp;
  */
 
 
+import java.nio.Buffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
+
+import org.apache.commons.collections.buffer.CircularFifoBuffer;
 
 import android.app.Service;
 import android.content.Intent;
@@ -37,6 +40,7 @@ import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.os.Binder;
+import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Trace;
@@ -76,6 +80,7 @@ public class RecordingMfccService extends Service {
 
 	private static int FFT_SIZE = 512; //512 = default;
 	//8000samples/s divided by 256samples/frame -> 32ms/frame (31.25ms)
+	//now its 16000 samples/s divided by 512 samples.frame but still -> 32ms/frame (31.25ms)
 	private static int FRAME_SIZE_IN_SAMPLES = 512; //512 = default value;
 
 	//32ms/frame times 64frames/window = 2s/window
@@ -102,7 +107,9 @@ public class RecordingMfccService extends Service {
 	private static int DROP_FIRST_X_WINDOWS = 1;
 	
 	//variabled added later by Wahib
-	final double windowsToRead = 10;//10 = 20 seconds //2.5 = 5 seconds; //audio file duration in seconds
+	final double windowsToRead = 2.5; //10;//10 = 20 seconds //2.5 = 5 seconds; //audio file duration in seconds
+	final int OVERLAP_SIZE_IN_SAMPLES = 160;
+	final int BUFFER_ITERATIONS_COUNT = 4;
 	
 	static Handler repeatRecordHandler = null;
 	static Runnable repeatRecordRunnable = null;
@@ -111,7 +118,6 @@ public class RecordingMfccService extends Service {
 	//private final int RECORDING_REPEAT_CYCLE = 10000; //1000 = 10 seconds
 	static int cycleCount = 0;
 	//final int maxCycleCount = 100; //use it to set total time to run; total time (sec) = maxCycleCount * RECORDING_REPEAT_CYCLE
-	final String csvFileName = "20MfccFeatures.csv"; //"20MfccFeatures_";
 	final static String TAG = "VoiceRecognizerSP"; //Voice Recognizer with Superpowered functionality
 
 	ArrayList<LinkedList<ArrayList<double[]>>> mfccFinalList;
@@ -373,7 +379,7 @@ public class RecordingMfccService extends Service {
 		//repeatRecordHandler.postDelayed(repeatRecordRunnable, RECORDING_REPEAT_CYCLE); //this is to add delay in the beginning which is not required
 	}
     
-
+	
 	//TODO: drop frames without speech -> speakersense
 	//TODO: cepstral mean normalization -> overview paper
 	//TODO: augment features with derivatives -> overview paper
@@ -392,16 +398,38 @@ public class RecordingMfccService extends Service {
 	 * a window contains sequential but not necessarily consecutive
 	 * frames.
 	 * 
-	 * v1.0
+	 * Updated by Wahib on 03/03/2015
+	 * Decoupling of audioRecord.read() and sending to processAudioFrame().
+	 * CircularFifoBuffer is introduced which maintins the buffer and when filled then
+	 * only sent for processing. Reason for doing this was to introduce overlapping of
+	 * samples for better efficiency.
+	 * 
+	 * v1.1
 	 */
 	private void processAudioStream()
 	{
+		
+		///newly added ///
+		
+		short dataFrame16bit_one[] = new short[OVERLAP_SIZE_IN_SAMPLES]; //160
+		short dataFrame16bit_two[] = new short[OVERLAP_SIZE_IN_SAMPLES]; //160
+		short dataFrame16bit_three[] = new short[OVERLAP_SIZE_IN_SAMPLES]; //160
+		short dataFrame16bit_four[] = new short[OVERLAP_SIZE_IN_SAMPLES]; //160
 
-		short dataFrame16bit[] = new short[FRAME_SIZE_IN_SAMPLES];
-
+		
+		
+		int dataFrameCount = 0;
+		
+		//https://commons.apache.org/proper/commons-collections/javadocs/api-3.2.1/org/apache/commons/collections/buffer/CircularFifoBuffer.html
+		CircularFifoBuffer buffer = new CircularFifoBuffer(BUFFER_ITERATIONS_COUNT);
+		///////////////
+		
+		
+		
 		//initialize general processing data
 		featureWin = new Window(FRAME_SIZE_IN_SAMPLES); //smoothing window, nothing to do with frame window
 		
+		//choising FFT technology
 		if(fftType.equals("FFT_CT"))
 			featureFFT = new FFT(FFT_SIZE);
 		
@@ -421,14 +449,17 @@ public class RecordingMfccService extends Service {
 
 		int readAudioSamples = 0;
 		int currentIteration = 0;
-
+		
+		
+		FrequencyProperties freq = null;
 		
     	Log.i(TAG, "MFCC processAudioStream() Staring to Record !");
-
-    	//analysing and extracting MFCC features in a 30 sec frame. WINDOW_SIZE_IN_FRAMES here refers to 2 sec
-		while (currentIteration < windowsToRead * WINDOW_SIZE_IN_FRAMES) //960 = 15*64 -> 15*2s=30s
+    	
+    	
+    	//analysing and extracting MFCC features in a 20 sec frame. WINDOW_SIZE_IN_FRAMES here refers to 2 sec
+		while (currentIteration < windowsToRead * WINDOW_SIZE_IN_FRAMES) //640 = 10*64 -> 10*2s=20s
 		{
-
+			
 			// read() kann entweder mind. buffer_size/2 zeichen zur�ckliefern
 			// (wir brauchen viel weniger) oder blockiert:
 			// http://stackoverflow.com/questions/15804903/android-dev-audiorecord-without-blocking-or-threads
@@ -438,8 +469,37 @@ public class RecordingMfccService extends Service {
 				synchronized (this) {
 					if (isRecording())
 					{
-						readAudioSamples = audioRecorder.read(dataFrame16bit, 0, FRAME_SIZE_IN_SAMPLES);
-						//monitorCpuUsage();
+												
+						//to keep a check when buffer is full and needs to be send to process
+						++dataFrameCount;
+						
+						//the only reason to have 4 different dataFrame arrays is that buffer uses pass by reference so
+						//data was not actually changed in buffer even if dataFrame16bit content was changed 
+						if(dataFrameCount == 1)
+						{
+							readAudioSamples = audioRecorder.read(dataFrame16bit_one, 0, OVERLAP_SIZE_IN_SAMPLES);
+							buffer.add(dataFrame16bit_one);
+						}
+						else if(dataFrameCount == 2)
+						{
+							readAudioSamples = audioRecorder.read(dataFrame16bit_two, 0, OVERLAP_SIZE_IN_SAMPLES);
+							buffer.add(dataFrame16bit_two);
+						}
+						else if(dataFrameCount== 3)
+						{
+							readAudioSamples = audioRecorder.read(dataFrame16bit_three, 0, OVERLAP_SIZE_IN_SAMPLES);
+							buffer.add(dataFrame16bit_three);
+						}
+						else if(dataFrameCount == 4)
+						{
+							readAudioSamples = audioRecorder.read(dataFrame16bit_four, 0, OVERLAP_SIZE_IN_SAMPLES);
+							buffer.add(dataFrame16bit_four);
+						}
+						
+						
+						
+						//Log.i(TAG, "MFCC circular buffer : " + dataFrameCount);
+						
 					}
 					else
 					{
@@ -455,6 +515,9 @@ public class RecordingMfccService extends Service {
 						
 				    	mfccFinalList.add(featureCepstrums);
 				    	
+						//sendResult("Recording in progress .. " + String.valueOf(currentIteration));
+
+				    	
 						return;
 					}
 				}
@@ -463,43 +526,53 @@ public class RecordingMfccService extends Service {
 				
 				e.printStackTrace();
 			}
-			
 
 			if (readAudioSamples == 0)
 				return;
 			
-			if (!isFrameAdmittedByRMS(dataFrame16bit))
-				continue;
+			Object bufferArray[] = buffer.toArray();
+			if(!isFrameAdmittedByRMS((short[])bufferArray[dataFrameCount-1]))
+				continue; //skips rest of the code in loop
 
-			FrequencyProperties freq = processAudioFrame(readAudioSamples, dataFrame16bit, true);
+			//means 512 samples count is achieved and now its ready for processing
+			if(dataFrameCount == BUFFER_ITERATIONS_COUNT )
+			{
+				freq = processAudioFrame(FRAME_SIZE_IN_SAMPLES, buffer, true);
+				
+				dataFrameCount = 0;//resetting count
+
+			}
 			
 			if (freq == null)
-				continue;
+				continue; //skips rest of the code in loop
 			
 			//combine WINDOW_SIZE_IN_FRAMES frames to a window
 			//2s with a window size of 64
 			if (cepstrumWindow.size() == WINDOW_SIZE_IN_FRAMES){
+				
 				cepstrumWindow = new ArrayList<double[]>(WINDOW_SIZE_IN_FRAMES);
 				featureCepstrums.add(cepstrumWindow);
-
+		    	
+				//Log.i(TAG, "MFCC recording cycle : " + currentIteration);
+				
 				
 			}
 			
 			currentIteration++;
-			
+
 		
 			// Add MFCCs of this frame to our window
 			cepstrumWindow.add(freq.getFeatureCepstrum());
 			
-			//monitorCpuUsage();
 
 	    	//Log.i(TAG, "MFCC recording cycle : " + currentIteration);
+	    	
+	    	//System.exit(0);
+			
 
 		}
 
-		//showToast("Done recording.");
     	Log.i(TAG, "MFCC processAudioStream() Done Recording !");
-		//monitorCpuUsage();
 
     	mfccFinalList.add(featureCepstrums);
     	
@@ -509,12 +582,17 @@ public class RecordingMfccService extends Service {
 	}
 
 
+
 	/**
 	 * Takes an audio frame and processes it in the frequency domain:
 	 * 1. Applies a Hamming smoothing window
 	 * 2. Computes the FFT
 	 * 3. Computes the Power Spectral Density for each frequency band
-	 * 4. Computes the MFC coefficients
+	 * 4. Computes the MFCC coefficients
+	 * 
+	 * updated by Wahib on 03/03/2015
+	 * Accessing CircularBufferFifo and filling the main data array with contents
+	 * of buffer so that it can be used like before
 	 * 
 	 * @param samples Number of samples in this frame (should be static)
 	 * @param dataFrame16bit Array of samples
@@ -528,16 +606,46 @@ public class RecordingMfccService extends Service {
 	 * Acknowledgments: Alan Gardner
 	 * Contact: nadav@media.mit.edu
 	 * 
-	 * v1.0
+	 * v1.1
 	 */
-	public FrequencyProperties processAudioFrame(int samples, short dataFrame16bit[], boolean dropIfBad) {
+	public FrequencyProperties processAudioFrame(int samples, CircularFifoBuffer buffer, boolean dropIfBad) {
+		
 		double fftBufferR[] = new double[FFT_SIZE];
 		double fftBufferI[] = new double[FFT_SIZE];
 	
 		double[] featureCepstrum = new double[MFCCS_VALUE-1];
 		
+		short dataFrame16bit[] = new short[samples];
+		
+		////////newly added///////
+		Object bufferArray[] = buffer.toArray();
+		int count = 0;
+		short[] temp;
+		
+		for(int i=0; i<buffer.size(); i++)
+		{
+			if(i != buffer.size() - 1)
+			{
+				//except last one
+				temp = (short[]) bufferArray[i];
+			}
+			else
+			{
+				//last one
+				int maxForLast = FRAME_SIZE_IN_SAMPLES - (3 * OVERLAP_SIZE_IN_SAMPLES) ; 
+				temp = Arrays.copyOfRange((short[]) bufferArray[i], 0, maxForLast);
 
-
+			}
+				
+			
+			
+			System.arraycopy(temp, 0, dataFrame16bit, count, temp.length);
+			
+			count += OVERLAP_SIZE_IN_SAMPLES;
+			
+		}
+		///////////////////
+		
 		// Frequency analysis
 		Arrays.fill(fftBufferR, 0);
 		Arrays.fill(fftBufferI, 0);
@@ -545,6 +653,7 @@ public class RecordingMfccService extends Service {
 		// Convert audio buffer to doubles
 		for (int i = 0; i < samples; i++)
 		{
+			
 			fftBufferR[i] = dataFrame16bit[i];
 		}
 
@@ -552,29 +661,45 @@ public class RecordingMfccService extends Service {
 		featureWin.applyWindow(fftBufferR);
 
 		
-		
-		Trace.beginSection("ProcessFFT");
-		try {
-		        Trace.beginSection("Processing onFFTReal");
-		        try {
-		            // code for superpowered onFFTReal task...
-		        	
-		        	if(fftType.equals("FFT_SP"))
-		        	{
-		        		// In-place FFT - this is what we have to use as instructed by Florian
-		        		onFFTReal(convertDoublesToFloats(fftBufferR), convertDoublesToFloats(fftBufferI), logSize, ifForward);
-		        	}
-		        	else if(fftType.equals("FFT_CT"))
-		        		featureFFT.fft(fftBufferR, fftBufferI);
+		if(getAndroidVersion() >= 18)
+		{
+			//Android 4.3 (API level 18) or higher
+			
+			Trace.beginSection("ProcessFFT");
+			try {
+			        Trace.beginSection("Processing onFFTReal");
+			        try {
+			            // code for superpowered onFFTReal task...
+			        	
+			        	if(fftType.equals("FFT_SP"))
+			        	{
+			        		// In-place FFT - this is what we have to use as instructed by Florian
+			        		onFFTReal(convertDoublesToFloats(fftBufferR), convertDoublesToFloats(fftBufferI), logSize, ifForward);
+			        	}
+			        	else if(fftType.equals("FFT_CT"))
+			        		featureFFT.fft(fftBufferR, fftBufferI);
+	
+	
+			        } finally {
+			            Trace.endSection(); // ends "Processing Jane"
+			        }
+			 } 
+			finally {
+			        Trace.endSection(); // ends "ProcessPeople"
+			 }
+		}
+		else
+		{
+			//Android 4.2 (API level 17) or lower
+			if(fftType.equals("FFT_SP"))
+        	{
+        		// In-place FFT - this is what we have to use as instructed by Florian
+        		onFFTReal(convertDoublesToFloats(fftBufferR), convertDoublesToFloats(fftBufferI), logSize, ifForward);
+        	}
+        	else if(fftType.equals("FFT_CT"))
+        		featureFFT.fft(fftBufferR, fftBufferI);
 
-
-		        } finally {
-		            Trace.endSection(); // ends "Processing Jane"
-		        }
-		 } 
-		finally {
-		        Trace.endSection(); // ends "ProcessPeople"
-		 }
+		}
 
 		//featureFFT.fft(fftBufferR, fftBufferI);
 		//onFFTReal(convertDoublesToFloats(fftBufferR), convertDoublesToFloats(fftBufferI), logSize, ifForward);
@@ -597,6 +722,18 @@ public class RecordingMfccService extends Service {
 		}
 		
 		return freq;
+	}
+
+	
+	/**
+	 * Fetches OS version of the phone and returns the sdk version
+	 * @return
+	 */
+	public int getAndroidVersion() {
+	    //String release = Build.VERSION.RELEASE;
+	    int sdkVersion = Build.VERSION.SDK_INT;
+	    //return "Android SDK: " + sdkVersion + " (" + release +")";
+	    return sdkVersion;
 	}
 
 	public static float[] convertDoublesToFloats(double[] input)

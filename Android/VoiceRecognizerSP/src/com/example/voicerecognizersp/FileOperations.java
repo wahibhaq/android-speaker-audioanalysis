@@ -16,7 +16,7 @@ import android.util.Log;
 
 
 
-class FileOperations
+public class FileOperations
 {
 	
 
@@ -27,7 +27,7 @@ class FileOperations
 	private static String SD_FOLDER_PATH_LOGS = SD_FOLDER_PATH + "/Logs"; 
 	public static String SD_FOLDER_PATH_CSV = SD_FOLDER_PATH + "/CSV"; 
 
-	final String csvFileName = "20MfccFeatures.csv"; //"20MfccFeatures_";
+	final String csvFileName = "voicerecognizer_mfcc.csv"; //"20MfccFeatures_";
 	final String batteryFileName = "battery_data.txt";
 	final String memcpuFileName = "memcpu_data.txt";
 

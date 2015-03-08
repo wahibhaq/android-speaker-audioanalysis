@@ -1,0 +1,33 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context="com.example.classifiertest.MainActivity" >
+
+    <item
+        android:id="@+id/action_addexperiment"
+        android:title="@string/action_addexperiment"
+    />
+    <item
+        android:id="@+id/action_switchfft"
+        android:title="@string/action_switchfft"
+    />
+    
+    <item
+        android:id="@+id/action_selectgmm"
+        android:title="@string/action_selectgmm"
+    />
+    
+    <item
+        android:id="@+id/action_selectrfnn"
+        android:title="@string/action_selectrfnn"
+    />
+    
+    <item
+        android:id="@+id/action_resetexperiment"
+        android:orderInCategory="100"
+        android:title="@string/action_resetexperiment"
+        app:showAsAction="never"
+        
+        />
+
+</menu>
