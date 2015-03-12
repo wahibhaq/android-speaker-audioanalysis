@@ -1,20 +1,17 @@
 package com.example.voicerecognizersp;
 
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.LinkedList;
 import java.util.Locale;
 
+import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.app.Activity;
-import android.app.ActivityManager;
-import android.app.ActivityManager.RunningAppProcessInfo;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -22,6 +19,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.BatteryManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.IBinder;
@@ -41,14 +39,14 @@ import com.example.voicerecognizersp.RecordingMfccService.LocalBinder;
 
 public class MainBindingActivity extends Activity {
 	
-	 RecordingMfccService mService;
+	 static RecordingMfccService mService;
 	 boolean isBound = false;
 	 Intent intentBindService;
+	 static boolean needToBind = true;
 	    
 	 Button btnStartRecording, btnStopRecording;
 	 TextView txtMessage;
 	 final static String TAG = "MFCCBindingActivity";
-     private static final String appProcessName = "com.example.voicerecognizersp";
 
 	 BroadcastReceiver receiver;
 	 
@@ -63,7 +61,10 @@ public class MainBindingActivity extends Activity {
 	 final String csvFileName = "voicerecognizer_mfcc.csv"; //"20MfccFeatures_";
 	 
 	 FileOperations fileOprObj;
-	 static volatile FileOperations instance = null;
+	 MonitoringData monitorOprObj;
+	 
+	 static volatile FileOperations fileInstance = null;
+	 static volatile MonitoringData monitorInstance = null;
 	 
 
 		/**
@@ -73,13 +74,29 @@ public class MainBindingActivity extends Activity {
 		 * @return
 		 */
 		//http://howtodoinjava.com/2012/10/22/singleton-design-pattern-in-java/
-		public static FileOperations getInstance(MainBindingActivity mainBindingActivity) {
-	        if (instance == null) {
+		public static FileOperations getFileInstance(MainBindingActivity mainBindingActivity) {
+	        if (fileInstance == null) {
 	            synchronized (FileOperations.class) {
-	                instance = new FileOperations(mainBindingActivity);
+	                fileInstance = new FileOperations(mainBindingActivity);
 	            }
 	        }
-	        return instance;
+	        return fileInstance;
+	    }
+		
+		/**
+		 * singleton method to ensure MonitoringData instance remains unique so that constructor is not called more than once
+		 * 
+		 * @param mainBindingActivity
+		 * @return
+		 */
+		//http://howtodoinjava.com/2012/10/22/singleton-design-pattern-in-java/
+		public static MonitoringData getMonitoringInstance(MainBindingActivity mainBindingActivity) {
+	        if (monitorInstance == null) {
+	            synchronized (MonitoringData.class) {
+	                monitorInstance = new MonitoringData(mainBindingActivity);
+	            }
+	        }
+	        return monitorInstance;
 	    }
 		
 		
@@ -90,22 +107,14 @@ public class MainBindingActivity extends Activity {
 	        super.onCreate(savedInstanceState);
 	        setContentView(R.layout.activity_main);
 	        
-	        fileOprObj = getInstance(this);
+	        fileOprObj = getFileInstance(this);
+	        monitorOprObj = getMonitoringInstance(this);
 	        
 	    	btnStartRecording = (Button)findViewById(R.id.buttonStartRec);
 			btnStopRecording = (Button)findViewById(R.id.buttonStopRec);
 			txtMessage = (TextView) findViewById(R.id.txtMessage);
 			
-			if(fftType.equals("FFT_CT"))
-			{
-				SD_FOLDER_PATH = "/Thesis/VoiceRecognizer";
-				txtMessage.setText("MFCC with Cooley-Tukey");
-			}
-			else if(fftType.equals("FFT_SP"))
-			{
-				SD_FOLDER_PATH = "/Thesis/VoiceRecognizerSP";
-				txtMessage.setText("MFCC with Superpowered");
-			}
+			setFFTtype();
 			
 			btnStartRecording.setOnClickListener(new OnClickListener() {
 				
@@ -113,36 +122,45 @@ public class MainBindingActivity extends Activity {
 				public void onClick(View v) {
 					
 					
+					if(fileOprObj.isAllDirsExist())
+					{
 					
-					// TODO Auto-generated method stub
-					if (mService.isDispatcherNull() == true) {
+						// TODO Auto-generated method stub
+						if (mService.isDispatcherNull() == true) {
+							
+							
+							// Call a method from the LocalService.
+				            // However, if this call were something that might hang, then this request should
+				            // occur in a separate thread to avoid slowing down the activity performance.
+							
+							
+							mService.initDispatcher();
+	
+							monitorBatteryUsage("Start");
+			        		monitorCpuAndMemoryUsage("Start");
+	
+							mService.startMfccExtraction();
 						
-						
-						// Call a method from the LocalService.
-			            // However, if this call were something that might hang, then this request should
-			            // occur in a separate thread to avoid slowing down the activity performance.
-						
-						
-						mService.initDispatcher();
-
-						monitorBatteryUsage("Start");
-		        		monitorCpuAndMemoryUsage("Start");
-
-						mService.startMfccExtraction();
-					
-						txtMessage.setText("Recording in progress ...");
-
-						
-						
-			        }
+							txtMessage.setText("Recording in progress ...");
+							btnStartRecording.setEnabled(false);
+	
+							
+							
+				        }
+						else
+						{
+							// Bind to LocalService. Also to rebind
+					        //intentBindService = new Intent(getApplicationContext(), RecordingMfccService.class);
+					        //bindService(intentBindService, mConnection, Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT);
+					        
+						}
+					}
 					else
 					{
-						// Bind to LocalService. Also to rebind
-				        intentBindService = new Intent(getApplicationContext(), RecordingMfccService.class);
-				        bindService(intentBindService, mConnection, Context.BIND_AUTO_CREATE);
-				        
+						Toast.makeText(getApplicationContext(), "All Dirs Not Exist .. recreating !", Toast.LENGTH_LONG).show();
+						fileOprObj.recreateDirsIfExist();
 					}
-				
+					
 					
 				}
 
@@ -154,56 +172,11 @@ public class MainBindingActivity extends Activity {
 				public void onClick(View v) {
 					// TODO Auto-generated method stub
 					
-			        // Unbind from the service
-			        if (isBound ) {
-			            unbindService(mConnection);
-			            isBound = false;
-						Log.i(TAG, "onStopRecording Service unbinded & isbound : " + isBound);
-						
-					    LocalBroadcastManager.getInstance(getApplicationContext()).unregisterReceiver(receiver);
-
-			            
-			        }
-			        else
-			        {
-						Log.i(TAG, "onStopRecording Service unbinded & isbound : " + isBound);
-
-			        }
 			        
-			        
-			        
-			        //stop MFCC tasks
-		            if(mService.isDispatcherNull() == false)
-		            {
-						Log.i(TAG, "onStopRecording isDispatcher : " + mService.isDispatcherNull());
+		         performStopRecording();
+		         
+				 btnStartRecording.setEnabled(true);
 
-		            	mService.stopDispatcher();
-		            	
-		            	txtMessage.setText("Recording stopped !");
-		            	monitorBatteryUsage("End  ");
-				    	monitorCpuAndMemoryUsage("End  ");
-				    	
-						
-						
-						// storing to csv done on a separate thread
-					    Runnable runnable = new Runnable() {
-					      @Override
-					      public void run() {
-					           
-								audioFeatures2csv(mService.getMfccList());
-								
-					        }
-					      
-					    };
-					    
-					    new Thread(runnable).start();
-					    
-
-		            }
-		            else
-						Log.i(TAG, "onStopRecording isDispatcher : " + mService.isDispatcherNull());
-
-		           		        
 			        
 
 		            
@@ -222,6 +195,8 @@ public class MainBindingActivity extends Activity {
 		            txtMessage.setText(msgFromService);
 		        }
 		    };
+		    
+		    
 			
 	}
 	 
@@ -233,33 +208,191 @@ public class MainBindingActivity extends Activity {
 	    	moveTaskToBack(true);
 	    }
 	   
+	    @SuppressLint("InlinedApi")
+		@Override
+	    protected void onStart() {
+	        super.onStart();
+	        
+	        /*
+	    	Log.i(TAG, "onStart-Bind called ");
+
+	        // Bind to LocalService
+	        //Intent intent = new Intent(this, RecordingMfccService.class);
+	    	intentBindService = new Intent(this, RecordingMfccService.class);
+	        bindService(intentBindService, mConnection, Context.BIND_AUTO_CREATE|Context.BIND_IMPORTANT);
+	        */
+	        
+
+	    }
+
+	    @Override
+	    protected void onStop() {
+	        super.onStop();
+	        
+	        /*
+	    	Log.i(TAG, "onStop-Unbind");
+
+	        // Unbind from the service
+	    	
+	        if (isBound ) {
+	            unbindService(mConnection);
+	            isBound = false;
+				//Log.i(TAG, "onStopRecording Service unbinded & isbound : " + isBound);
+				
+			    LocalBroadcastManager.getInstance(getApplicationContext()).unregisterReceiver(receiver);
+			    
+	        }
+	        
+	        */
+	        
+	        
+	    }
+
 	    
 	    @Override
 	    public void onPause() {
 	    	super.onPause();
 	    	
-	    	Log.i(TAG, "onPause");
+	    	//Log.i(TAG, "onPause");
 
 	    }
-	    
-	    
 	    
 	    @Override
+	    public void onDestroy() {
+	    	super.onDestroy();
+	    	
+	    	Log.i(TAG, "onDestroy");
+	    	
+	    	// Unbind from the service
+	    	
+	        if (isBound ) {
+		    	Log.i(TAG, "Unbind called");
+
+	            unbindService(mConnection);
+	            isBound = false;
+				//Log.i(TAG, "onStopRecording Service unbinded & isbound : " + isBound);
+				needToBind = true;
+				
+			    LocalBroadcastManager.getInstance(getApplicationContext()).unregisterReceiver(receiver);
+			    
+	        }
+	        
+	        
+	        
+	    	
+	    }
+	    
+	    
+		@Override
 	    public void onResume() {
 			super.onResume();
-	    	Log.i(TAG, "onResume");
+	    	//Log.i(TAG, "onResume");
 
-	    	// Bind to LocalService. Also in onResume so that it rebinds after coming back from homepressed
-	        intentBindService = new Intent(this, RecordingMfccService.class);
-	        bindService(intentBindService, mConnection, Context.BIND_AUTO_CREATE);
+	    	if(needToBind)
+	    	{
+		    	Log.i(TAG, "onResume-bind called");
+		    	needToBind = false;
+	    		// Bind to LocalService. Also in onResume so that it rebinds after coming back from homepressed
 	        
-	        LocalBroadcastManager.getInstance(this).registerReceiver((receiver), new IntentFilter(RecordingMfccService.COPA_RESULT));
-	        
-	    
-
+	    		intentBindService = new Intent(this, RecordingMfccService.class);
+	    		bindService(intentBindService, mConnection, Context.BIND_AUTO_CREATE|Context.BIND_IMPORTANT);
+	              
+	    		LocalBroadcastManager.getInstance(this).registerReceiver((receiver), new IntentFilter(RecordingMfccService.COPA_RESULT));
+	    	}
+	    	else
+	    	{
+	    	
+		    	if (mService.isDispatcherNull() == false)
+			    	{
+						txtMessage.setText("Recording in progress ...");
+						btnStartRecording.setEnabled(false);
+			    	}
+			    	else
+			    	{
+						btnStartRecording.setEnabled(true);
+			    	}
+	    	}
+	       
 	        
 	    }
 	    
+	    private void performStopRecording() {
+	    	// Unbind from the service
+	        if (isBound) {
+	            
+	        	//Not running anyways
+	        	/*
+		    	Log.i(TAG, "performStop-Unbind called");
+
+	        	unbindService(mConnection);
+	            isBound = false;
+				//Log.i(TAG, "onStopRecording Service unbinded & isbound : " + isBound);
+				
+			    LocalBroadcastManager.getInstance(getApplicationContext()).unregisterReceiver(receiver);
+			    needToBind = true;
+			    */
+			    
+			    
+	        }
+	        else
+	        {
+				Log.i(TAG, "everything definitely stopped now !");
+				txtMessage.setText("everything definitely stopped now !");
+	        	
+	    		Toast.makeText(getApplicationContext(), "Recording is definitey stopped now !!", Toast.LENGTH_SHORT).show();
+	    		 
+
+
+	        }
+	        
+	        
+	        
+	        //stop MFCC tasks
+            if(mService.isDispatcherNull() == false)
+            {
+				Log.i(TAG, "onStopRecording isDispatcher : " + mService.isDispatcherNull());
+
+            	mService.stopDispatcher();
+            	
+            	txtMessage.setText("Recording stopped !");
+            	monitorBatteryUsage("End  ");
+		    	monitorCpuAndMemoryUsage("End  ");
+		    	
+			   // monitorOprObj.dumpMeanAndSdForCpu();
+
+		    	
+				
+				
+				// storing to csv done on a separate thread
+			    Runnable runnable = new Runnable() {
+			      @Override
+			      public void run() {
+			           
+						audioFeatures2csv(mService.getMfccList());
+						
+			        }
+			      
+			    };
+			    
+			    new Thread(runnable).start();
+			    
+
+            }
+	    }
+	    
+	    private void setFFTtype()
+	    {
+	    	if(fftType.equals("FFT_CT"))
+			{
+				SD_FOLDER_PATH = "/Thesis/VoiceRecognizer";
+				txtMessage.setText("MFCC with Cooley-Tukey");
+			}
+			else if(fftType.equals("FFT_SP"))
+			{
+				SD_FOLDER_PATH = "/Thesis/VoiceRecognizerSP";
+				txtMessage.setText("MFCC with Superpowered");
+			}
+	    }
 
 		public void showToast(final String text) {
 			runOnUiThread(new Runnable() 
@@ -286,7 +419,9 @@ public class MainBindingActivity extends Activity {
 	            isBound = true;
 	            
 	            //txtMessage.setText("Connected");
-	            showToast("Conneted");
+	            showToast("Connected");
+	    
+
 	            
 	            
 	            
@@ -371,124 +506,7 @@ public class MainBindingActivity extends Activity {
 		
 		
 		
-		/**
-		 * Function computes "Total Private Dirty Memory" consumed by this application only.
-		 * @return
-		 */
-		private String getMemoryUsage()
-		{
-			Context context = getApplicationContext();
-			ActivityManager mgr = (ActivityManager)context.getSystemService(ACTIVITY_SERVICE);
-			String totalPrivateDirtyMemory = "";
-			
-			for(RunningAppProcessInfo processInfo : mgr.getRunningAppProcesses())
-			{
-				
-		        if(processInfo.processName.equals(appProcessName) ){
-		        	//Log.i(TAG, " MFCC pid: "+processInfo.pid);                    
-				    int[] pids = new int[1];
-				    pids[0] = processInfo.pid;
-				    android.os.Debug.MemoryInfo[] MI = mgr.getProcessMemoryInfo(pids);
-		     	    Log.i(TAG,"MFCC total private dirty memory (KB): " + MI[0].getTotalPrivateDirty());
-		     	    
-		     	    
-		     	    totalPrivateDirtyMemory = String.valueOf(MI[0].getTotalPrivateDirty());
-				    
-				    break;
-		        }
-		    }
-			
-			return totalPrivateDirtyMemory;
 		
-			    
-
-		  /*
-			    Log.e("memory","     dalvik private: " + MI[0].dalvikPrivateDirty);
-			    Log.e("memory","     dalvik shared: " + MI[0].dalvikSharedDirty);
-			    Log.e("memory","     dalvik pss: " + MI[0].dalvikPss);            
-			    Log.e("memory","     native private: " + MI[0].nativePrivateDirty);
-			    Log.e("memory","     native shared: " + MI[0].nativeSharedDirty);
-			    Log.e("memory","     native pss: " + MI[0].nativePss);            
-			    Log.e("memory","     other private: " + MI[0].otherPrivateDirty);
-			    Log.e("memory","     other shared: " + MI[0].otherSharedDirty);
-			    Log.e("memory","     other pss: " + MI[0].otherPss);
-
-			    Log.e("memory","     total private dirty memory (KB): " + MI[0].getTotalPrivateDirty());
-			    Log.e("memory","     total shared (KB): " + MI[0].getTotalSharedDirty());
-			    Log.e("memory","     total pss: " + MI[0].getTotalPss());            
-			
-			*/
-		    
-		    
-		}
-		
-		/**
-		 * uses linux "top" command to fetch cpu percentage value which shows how much this app is
-		 * contributing to total cpu usage
-		 * 
-		 * @return
-		 */
-		//http://m2catalyst.com/tutorial-finding-cpu-usage-for-individual-android-apps/ 
-		private String getCpuUsage()
-		{
-			ArrayList<String> list = new ArrayList<String>();
-			String cpuUsageValue = "";
-
-			Process p = null;
-			try {
-				
-				p = Runtime.getRuntime().exec(new String[] { "sh", "-c", "top -n 1 | grep " + appProcessName });
-				
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-					
-			BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()));
-			
-			int i =0;
-			String line = "";
-			try {
-				
-				line = reader.readLine();
-				
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			
-			
-			//while(line != null)
-			if(line != null)
-			{
-				//Log.i(TAG, "MFCC output of top command : " + i + " : " + line);
-				//11203  0   0% S    13 901560K  43528K  fg u0_a141  tum.laser.voicerecognizer
-
-				String lineOuput[] = line.split(" ");
-				cpuUsageValue = lineOuput[5].trim();
-				//[19472, , 0, , , 0%, S, , , , 15, 904664K, , 44148K, , fg, u0_a141, , tum.laser.voicerecognizer]
-				
-				Log.i(TAG, "MFCC cpu usage value : " + cpuUsageValue);
-
-				list.add(line);
-				try {
-					line = reader.readLine();
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-				i++;
-			}
-			else
-			{
-				Log.i(TAG, "MFCC command line is null");
-
-			}
-			
-			return cpuUsageValue;
-			
-			
-		}
 		
 		/**
 		 * Function to monitor CPU usage and Memory allocation solely due to this application.
@@ -511,7 +529,7 @@ public class MainBindingActivity extends Activity {
 			{
 				//In case of Start and End
 				
-				line = "CPU Usage % : " + getCpuUsage() + " & " + "Memory (Private Dirty in KBs) : " + getMemoryUsage();
+				line = "CPU Usage % : " + monitorOprObj.getCpuUsage() + " & " + "Memory (Private Dirty in KBs) : " + monitorOprObj.getMemoryUsage();
 				fileOprObj.appendToMemCpuFile( state + " --- " + line + " --- " + getFormattedTimeStamp() );
 			}
 			
@@ -614,7 +632,7 @@ public class MainBindingActivity extends Activity {
 		    			 SD_FOLDER_PATH = "/Thesis/VoiceRecognizerSP";
 		    			 SD_FOLDER_PATH_CSV = SD_FOLDER_PATH + "/CSV"; 
 
-		    			 fileOprObj.resolveDirs();
+		    			 fileOprObj.resetDirs();
 
 		    			 showToast("FFT Changed");
 
@@ -633,7 +651,7 @@ public class MainBindingActivity extends Activity {
 		    			 SD_FOLDER_PATH = "/Thesis/VoiceRecognizer";
 		    			 SD_FOLDER_PATH_CSV = SD_FOLDER_PATH + "/CSV";
 		    			 
-		    			 fileOprObj.resolveDirs();
+		    			 fileOprObj.resetDirs();
 
 		    			 showToast("FFT Changed");
 		    			 

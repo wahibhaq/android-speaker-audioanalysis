@@ -30,6 +30,7 @@ public class FileOperations
 	final String csvFileName = "voicerecognizer_mfcc.csv"; //"20MfccFeatures_";
 	final String batteryFileName = "battery_data.txt";
 	final String memcpuFileName = "memcpu_data.txt";
+	final String cpuRealFileName = "cpu_real_usage_data.txt";
 
 	final static String TAG = "VoiceRecognizerSP"; //Voice Recognizer with Superpowered functionality
 
@@ -40,12 +41,18 @@ public class FileOperations
 	{
 		activityObj = mainBindingActivity;
 		
-		resolveDirs();
+		resetDirs();
 
 		
 	}
 	
-	public void resolveDirs()
+	public FileOperations()
+	{
+		//only to be used by MonitoringData
+	}
+	
+		
+	public void resetDirs()
 	{
 
 		if(activityObj.getFFTType().equals("FFT_CT"))
@@ -56,13 +63,21 @@ public class FileOperations
 		SD_FOLDER_PATH_LOGS = SD_FOLDER_PATH + "/Logs"; 
 		SD_FOLDER_PATH_CSV = SD_FOLDER_PATH + "/CSV"; 
 
-		if(checkDirsExist())
+		if(recreateDirsIfExist())
 		{
 			//if successfully dir created
 			appendToBatteryFile("____New Experiment____" + activityObj.getFFTType());
 			appendToMemCpuFile("____New Experiment____" + activityObj.getFFTType());
 		}
 		
+	}
+	
+	private void deleteRecursive(File fileOrDirectory) {
+	    if (fileOrDirectory.isDirectory())
+	    	for (File child : fileOrDirectory.listFiles())
+	    		child.delete();
+
+	    //fileOrDirectory.delete(); //to prevent deletion of dirs. sometimes dirs are not recreated fully 
 	}
 	
 	//http://examples.javacodegeeks.com/core-java/io/fileoutputstream/append-output-to-file-with-fileoutputstream/
@@ -112,15 +127,24 @@ public class FileOperations
 
 		}
 		
+		
+		
 		/**
 		 * To check if Logs Dir exist or if not then create it
 		 */
-		private boolean checkDirsExist()
+		public boolean recreateDirsIfExist()
 		{
 			File dirParent = new File(SD_PATH + SD_FOLDER_PATH_PARENT);
+			
 			File dirMain = new File(SD_PATH + SD_FOLDER_PATH);
+			
 			File dirCSV = new File(SD_PATH + SD_FOLDER_PATH_CSV);
+			if(dirCSV.exists())
+				deleteRecursive(dirCSV);
+			
 			File dirLogs = new File(SD_PATH + SD_FOLDER_PATH_LOGS);
+			if(dirLogs.exists())
+				deleteRecursive(dirLogs);
 			
 			try
 			{
@@ -143,8 +167,27 @@ public class FileOperations
 				return false;
 			}
 			
+			
+			
 			return true;
 		     
+		}
+		
+		/**
+		 * To check if all dirs exist or not
+		 * @return
+		 */
+		public boolean isAllDirsExist()
+		{
+			File dirParent = new File(SD_PATH + SD_FOLDER_PATH_PARENT);	
+			File dirMain = new File(SD_PATH + SD_FOLDER_PATH);
+			File dirCSV = new File(SD_PATH + SD_FOLDER_PATH_CSV);
+			File dirLogs = new File(SD_PATH + SD_FOLDER_PATH_LOGS);
+			
+			if(dirParent.exists() && dirMain.exists() && dirCSV.exists() && dirLogs.exists())
+				return true;
+			else 
+				return false;
 		}
 		
 		public void resetFiles()
@@ -208,6 +251,50 @@ public class FileOperations
 		     else
 		    	 activityObj.showToast("MemCpu File doesn't exist !");
 		     
+		     
+
+
+		}
+		
+		/**
+		 * To add real-time cpu usage values 
+		 * 
+		 * @param dataToAppend
+		 */
+		public void appendToCpuUsageFile(String dataToAppend)
+		{
+			 		     
+			 String logsfileStoragePath = Environment.getExternalStorageDirectory() + File.separator + SD_FOLDER_PATH_LOGS;
+			 File sdLogsStorageDir = new File(logsfileStoragePath);
+
+			 File file = new File(sdLogsStorageDir.toString() + File.separator + cpuRealFileName);
+
+		     
+		     
+		     if (sdLogsStorageDir.exists()) {
+
+		    	 PrintWriter pw;
+
+	             try {
+	            
+	            	 
+	                 
+	                 FileOutputStream fos = new FileOutputStream(file, true);
+	                 pw = new PrintWriter(fos);
+	                 pw.print(dataToAppend);
+	                 pw.flush();
+	                 pw.close();
+	                 
+	                 
+	                 
+	                 //activityObj.showToast("CPU Real-time Usage data stored in text file");
+	     	    	Log.i(TAG, "MFCC CPU real-time usage data appended : " + dataToAppend);
+
+	             } catch (IOException e) {
+	                 e.printStackTrace();
+	             }
+	         }
+		    
 		     
 
 

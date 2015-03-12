@@ -27,14 +27,17 @@ package com.example.voicerecognizersp;
  */
 
 
-import java.nio.Buffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
 
 import org.apache.commons.collections.buffer.CircularFifoBuffer;
 
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
@@ -44,8 +47,10 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Trace;
+import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.example.javagmm.FFT;
 import com.example.javagmm.FrequencyProperties;
@@ -78,18 +83,18 @@ public class RecordingMfccService extends Service {
 
 	//private static int WINDOWS_TO_RECORD = 4;
 
-	private static int FFT_SIZE = 512; //512 = default;
+	private static final int FFT_SIZE = 512; //512 = default;
 	//8000samples/s divided by 256samples/frame -> 32ms/frame (31.25ms)
 	//now its 16000 samples/s divided by 512 samples.frame but still -> 32ms/frame (31.25ms)
-	private static int FRAME_SIZE_IN_SAMPLES = 512; //512 = default value;
+	private static final int FRAME_SIZE_IN_SAMPLES = 512; //512 = default value;
 
 	//32ms/frame times 64frames/window = 2s/window
-	private static int WINDOW_SIZE_IN_FRAMES = 64;
+	private static final int WINDOW_SIZE_IN_FRAMES = 64;
 
-	private static int MFCCS_VALUE = 19; //MFCCs count 
-	private static int NUMBER_OF_FINAL_FEATURES = MFCCS_VALUE - 1; //discard energy
-	private static int MEL_BANDS = 20; //use FB-20
-	private static double[] FREQ_BANDEDGES = {50,250,500,1000,2000};
+	private static final int MFCCS_VALUE = 19; //MFCCs count 
+	private static final int NUMBER_OF_FINAL_FEATURES = MFCCS_VALUE - 1; //discard energy
+	private static final int MEL_BANDS = 20; //use FB-20
+	private static final double[] FREQ_BANDEDGES = {50,250,500,1000,2000};
 
 	private int bufferSize = 0;
 
@@ -106,10 +111,10 @@ public class RecordingMfccService extends Service {
 	
 	private static int DROP_FIRST_X_WINDOWS = 1;
 	
-	//variabled added later by Wahib
-	final double windowsToRead = 2.5; //10;//10 = 20 seconds //2.5 = 5 seconds; //audio file duration in seconds
-	final int OVERLAP_SIZE_IN_SAMPLES = 160;
-	final int BUFFER_ITERATIONS_COUNT = 4;
+	//////////////////variabled added later by Wahib//////////////
+	private static final double windowsToRead = 2.5; //10;//10 = 20 seconds //2.5 = 5 seconds; //audio file duration in seconds
+	private static final int OVERLAP_SIZE_IN_SAMPLES = 160;
+	private static final int BUFFER_ITERATIONS_COUNT = 4;
 	
 	static Handler repeatRecordHandler = null;
 	static Runnable repeatRecordRunnable = null;
@@ -122,7 +127,26 @@ public class RecordingMfccService extends Service {
 
 	ArrayList<LinkedList<ArrayList<double[]>>> mfccFinalList;
 	private static final String appProcessName = "com.example.voicerecognizersp";
-		
+	
+	MonitoringData monitorOprObj;
+	static volatile MonitoringData monitorInstance = null;
+	Thread dumpCpuValueThread = null;
+	
+	/**
+	 * singleton method to ensure MonitoringData instance remains unique so that constructor is not called more than once
+	 * 
+	 * @param mainBindingActivity
+	 * @return
+	 */
+	//http://howtodoinjava.com/2012/10/22/singleton-design-pattern-in-java/
+	public static MonitoringData getMonitoringInstance(Context context) {
+        if (monitorInstance == null) {
+            synchronized (MonitoringData.class) {
+                monitorInstance = new MonitoringData(context);
+            }
+        }
+        return monitorInstance;
+    }
 
 		
 	/////////////////Superpowered specifc/////////
@@ -145,8 +169,16 @@ public class RecordingMfccService extends Service {
         System.loadLibrary("SuperpoweredExample");
     }
 	    
-    ///////////////////////////////////////////
-	
+    /////////////////////Notification specific//////////////////////
+    
+    
+    private NotificationManager mNM;
+    
+    // Unique Identification Number for the Notification.
+    // We use it on Notification start, and to cancel it.
+    private int NOTIFICATION = 123;
+    
+    //////////////////////
 
     public RecordingMfccService() {
         Log.d(TAG, "constructor done");
@@ -158,9 +190,62 @@ public class RecordingMfccService extends Service {
         Log.d(TAG, "onCreate called");
     
 		broadcaster = LocalBroadcastManager.getInstance(this);
+        monitorOprObj = getMonitoringInstance(this);
         
+        mNM = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+
+        // Display a notification about us starting.  We put an icon in the status bar.
+        runAsForeground();
+
+        
+    }
+    
+
+        
+    /**
+     * Show a notification while this service is running and run as foreground so
+     * that OS knows that Activity depends on service and service is not a candidate
+     * to be killed
+     */
+    //http://stackoverflow.com/a/28144499/1016544
+    private void runAsForeground() {
+       
+    	
+    	Intent notificationIntent = new Intent(this, MainBindingActivity.class);
+        PendingIntent pendingIntent=PendingIntent.getActivity(this, 0,
+                notificationIntent, Intent.FLAG_ACTIVITY_NEW_TASK);
+
+        Notification notification=new NotificationCompat.Builder(this)
+                                    .setSmallIcon(R.drawable.ic_launcher)
+                                    .setContentTitle("VoiceRecognizerSP")
+                                    .setContentText("Service is running ...")
+                                    .setContentIntent(pendingIntent).build();
+
+        startForeground(NOTIFICATION, notification);
 
     }
+
+    
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        Log.i("LocalService", "Received start id " + startId + ": " + intent);
+        // We want this service to continue running until it is explicitly
+        // stopped, so return sticky.
+        return START_STICKY;
+    }
+
+    @Override
+    public void onDestroy() {
+    	
+    	super.onDestroy();
+    	
+        // Cancel the persistent notification.
+        mNM.cancel(NOTIFICATION);
+
+        // Tell the user we stopped.
+        Toast.makeText(this, "RecordingMfccService stopped !!", Toast.LENGTH_LONG).show();
+    }
+
     
     
 
@@ -182,20 +267,16 @@ public class RecordingMfccService extends Service {
     public IBinder onBind(Intent intent) {
         Log.d(TAG, "onBind done");
         
-        //initilizeMic
-        
         return mBinder;
     }
     
 
     /**
-     * methods for handling TarsosDSP
+     * initializing handler which manages recording 
      */
     
     public void initDispatcher()
     {
-        
-
     	repeatRecordHandler = new Handler();
 
     	mfccFinalList = new ArrayList<LinkedList<ArrayList<double[]>>>();
@@ -217,6 +298,10 @@ public class RecordingMfccService extends Service {
 
     }
     
+    /**
+     * FFT types are two : Cooley Turkey (CT) and Super Powered (SP)
+     * @param type
+     */
     public void setFFTType(String type)
     {
     	fftType = type;
@@ -297,7 +382,6 @@ public class RecordingMfccService extends Service {
 				{
 					isRecording = false;
 
-					//Toast.makeText(getApplicationContext(), "Stopped recording. Resetting...", Toast.LENGTH_SHORT).show();
 					sendResult("Stopped recording. Resetting...");
 
 
@@ -316,14 +400,15 @@ public class RecordingMfccService extends Service {
 					repeatRecordHandler.removeCallbacks(repeatRecordRunnable);
 					
 					
-			    	Log.i(TAG, "MFCC stopRecording() released !");
+			    	Log.i(TAG, "RecordingMfccService stopRecording() released !");
 			    	
 				}
 				else
 				{
 					isRecording = false;
-					//Toast.makeText(getApplicationContext(), "Recording already stopped !", Toast.LENGTH_SHORT).show();
 					sendResult("Recording already in stopped state !");
+			    	Log.i(TAG, "RecordingMfccService Recording already in stopped state !");
+
 
 				}
 
@@ -540,7 +625,7 @@ public class RecordingMfccService extends Service {
 				freq = processAudioFrame(FRAME_SIZE_IN_SAMPLES, buffer, true);
 				
 				dataFrameCount = 0;//resetting count
-
+				
 			}
 			
 			if (freq == null)
@@ -554,8 +639,7 @@ public class RecordingMfccService extends Service {
 				featureCepstrums.add(cepstrumWindow);
 		    	
 				//Log.i(TAG, "MFCC recording cycle : " + currentIteration);
-				
-				
+
 			}
 			
 			currentIteration++;
@@ -564,11 +648,12 @@ public class RecordingMfccService extends Service {
 			// Add MFCCs of this frame to our window
 			cepstrumWindow.add(freq.getFeatureCepstrum());
 			
+			//if(currentIteration == WINDOW_SIZE_IN_FRAMES * 5)
+			//	monitorOprObj.dumpRealtimeCpuValues();//dumping at half for better evaluation
+
 
 	    	//Log.i(TAG, "MFCC recording cycle : " + currentIteration);
 	    	
-	    	//System.exit(0);
-			
 
 		}
 
@@ -777,7 +862,7 @@ public class RecordingMfccService extends Service {
 	
 	private void repeatCycle()
 	{
-    		isRecording = false;//to skip synchronized if condition
+    		//isRecording = false;//to skip synchronized if condition
     		
     		repeatRecordHandler.post(repeatRecordRunnable);
     		//repeatRecordHandler.postDelayed(repeatRecordRunnable, RECORDING_REPEAT_CYCLE);
@@ -786,8 +871,12 @@ public class RecordingMfccService extends Service {
 
 	    	Log.i(TAG, "MFCC repeatCycle() new repeat initiated ..");
 
-    	
+	    	//Log.i(TAG, "MFCC repeatCycle() cpu usage value : " + monitorOprObj.getCpuUsage());
+	    	
+	    	//monitorOprObj.dumpRealtimeCpuValues();
+
 	}
+	
 	
 	
   	
@@ -805,5 +894,7 @@ public class RecordingMfccService extends Service {
 	    
 	    broadcaster.sendBroadcast(intent);
 	}
+	
+	
     
 }
