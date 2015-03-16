@@ -264,22 +264,22 @@ void SuperpoweredExample::process(SLAndroidSimpleBufferQueueItf caller) {
 }
 
 extern "C" {
-	JNIEXPORT void Java_com_example_voicerecognizersp_SuperPoweredExActivity_SuperpoweredExample(JNIEnv *javaEnvironment, jobject self, jstring apkPath, jlongArray offsetAndLength);
-	JNIEXPORT void Java_com_example_voicerecognizersp_SuperPoweredExActivity_onPlayPause(JNIEnv *javaEnvironment, jobject self, jboolean play);
-	JNIEXPORT void Java_com_example_voicerecognizersp_SuperPoweredExActivity_onCrossfader(JNIEnv *javaEnvironment, jobject self, jint value);
-	JNIEXPORT void Java_com_example_voicerecognizersp_SuperPoweredExActivity_onFxSelect(JNIEnv *javaEnvironment, jobject self, jint value);
-	JNIEXPORT void Java_com_example_voicerecognizersp_SuperPoweredExActivity_onFxOff(JNIEnv *javaEnvironment, jobject self);
-	JNIEXPORT void Java_com_example_voicerecognizersp_SuperPoweredExActivity_onFxValue(JNIEnv *javaEnvironment, jobject self, jint value);
+	JNIEXPORT void Java_com_example_voicerecognizersp_BindingActivity_SuperpoweredExample(JNIEnv *javaEnvironment, jobject self, jstring apkPath, jlongArray offsetAndLength);
+	JNIEXPORT void Java_com_example_voicerecognizersp_BindingActivity_onPlayPause(JNIEnv *javaEnvironment, jobject self, jboolean play);
+	JNIEXPORT void Java_com_example_voicerecognizersp_BindingActivity_onCrossfader(JNIEnv *javaEnvironment, jobject self, jint value);
+	JNIEXPORT void Java_com_example_voicerecognizersp_BindingActivity_onFxSelect(JNIEnv *javaEnvironment, jobject self, jint value);
+	JNIEXPORT void Java_com_example_voicerecognizersp_BindingActivity_onFxOff(JNIEnv *javaEnvironment, jobject self);
+	JNIEXPORT void Java_com_example_voicerecognizersp_BindingActivity_onFxValue(JNIEnv *javaEnvironment, jobject self, jint value);
 
-	JNIEXPORT void Java_com_example_voicerecognizersp_RecordingMfccService_onFFTPrepare(JNIEnv *env, jobject self, int logSize, bool ifReal);
-	JNIEXPORT void Java_com_example_voicerecognizersp_RecordingMfccService_onFFTReal(JNIEnv *env, jobject self, jfloatArray real, jfloatArray imag, int logSize, bool ifForward);
+	JNIEXPORT void Java_com_example_voicerecognizersp_MfccService_onFFTPrepare(JNIEnv *env, jobject self, int logSize, bool ifReal);
+	JNIEXPORT void Java_com_example_voicerecognizersp_MfccService_onFFTReal(JNIEnv *env, jobject self, jfloatArray real, jfloatArray imag, int logSize, bool ifForward);
 
 }
 
 static SuperpoweredExample *example = NULL;
 
 // Android is not passing more than 2 custom parameters, so we had to pack file offsets and lengths into an array.
-JNIEXPORT void Java_com_example_voicerecognizersp_SuperPoweredExActivity_SuperpoweredExample(JNIEnv *javaEnvironment, jobject self, jstring apkPath, jlongArray params) {
+JNIEXPORT void Java_com_example_voicerecognizersp_BindingActivity_SuperpoweredExample(JNIEnv *javaEnvironment, jobject self, jstring apkPath, jlongArray params) {
 	// Convert the input jlong array to a regular int array.
     jlong *longParams = javaEnvironment->GetLongArrayElements(params, JNI_FALSE);
     int arr[6];
@@ -292,31 +292,31 @@ JNIEXPORT void Java_com_example_voicerecognizersp_SuperPoweredExActivity_Superpo
 
 }
 
-JNIEXPORT void Java_com_example_voicerecognizersp_SuperPoweredExActivity_onPlayPause(JNIEnv *javaEnvironment, jobject self, jboolean play) {
+JNIEXPORT void Java_com_example_voicerecognizersp_BindingActivity_onPlayPause(JNIEnv *javaEnvironment, jobject self, jboolean play) {
 	example->onPlayPause(play);
 }
 
-JNIEXPORT void Java_com_example_voicerecognizersp_SuperPoweredExActivity_onCrossfader(JNIEnv *javaEnvironment, jobject self, jint value) {
+JNIEXPORT void Java_com_example_voicerecognizersp_BindingActivity_onCrossfader(JNIEnv *javaEnvironment, jobject self, jint value) {
 	example->onCrossfader(value);
 }
 
-JNIEXPORT void Java_com_example_voicerecognizersp_SuperPoweredExActivity_onFxSelect(JNIEnv *javaEnvironment, jobject self, jint value) {
+JNIEXPORT void Java_com_example_voicerecognizersp_BindingActivity_onFxSelect(JNIEnv *javaEnvironment, jobject self, jint value) {
 	example->onFxSelect(value);
 }
 
-JNIEXPORT void Java_com_example_voicerecognizersp_SuperPoweredExActivity_onFxOff(JNIEnv *javaEnvironment, jobject self) {
+JNIEXPORT void Java_com_example_voicerecognizersp_BindingActivity_onFxOff(JNIEnv *javaEnvironment, jobject self) {
 	example->onFxOff();
 }
 
-JNIEXPORT void Java_com_example_voicerecognizersp_SuperPoweredExActivity_onFxValue(JNIEnv *javaEnvironment, jobject self, jint value) {
+JNIEXPORT void Java_com_example_voicerecognizersp_BindingActivity_onFxValue(JNIEnv *javaEnvironment, jobject self, jint value) {
 	example->onFxValue(value);
 }
 
 //wahib
-JNIEXPORT void Java_com_example_voicerecognizersp_RecordingMfccService_onFFTPrepare(JNIEnv *env, jobject self, int logSize, bool ifReal){
+JNIEXPORT void Java_com_example_voicerecognizersp_MfccService_onFFTPrepare(JNIEnv *env, jobject self, int logSize, bool ifReal){
 	example->onFFTPrepare(logSize, ifReal);
 }
 
-JNIEXPORT void Java_com_example_voicerecognizersp_RecordingMfccService_onFFTReal(JNIEnv *env, jobject self, jfloatArray real, jfloatArray imag, int logSize, bool ifForward) {
+JNIEXPORT void Java_com_example_voicerecognizersp_MfccService_onFFTReal(JNIEnv *env, jobject self, jfloatArray real, jfloatArray imag, int logSize, bool ifForward) {
 	example->onFFTReal(env, self, real,imag, logSize, ifForward);
 }

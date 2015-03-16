@@ -200,7 +200,7 @@ public class MonitoringData {
 			
 	    	//Log.i(TAG, "MFCC Monitor cpu usage value : " + getCpuUsage());
 	    	
-	    	if(!getCpuUsage().equals(""))
+	    	if(getCpuUsage().length() > 0)
 	    		statObj.addValue(Double.valueOf(getCpuUsage().toString()));
 		}
 		

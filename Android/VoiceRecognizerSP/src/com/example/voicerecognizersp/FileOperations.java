@@ -34,10 +34,10 @@ public class FileOperations
 
 	final static String TAG = "VoiceRecognizerSP"; //Voice Recognizer with Superpowered functionality
 
-	MainBindingActivity activityObj;
+	BindingActivity activityObj;
 	
 	
-	public FileOperations(MainBindingActivity mainBindingActivity)
+	public FileOperations(BindingActivity mainBindingActivity)
 	{
 		activityObj = mainBindingActivity;
 		
