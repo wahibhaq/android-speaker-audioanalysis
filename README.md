@@ -1,5 +1,5 @@
-android-speech-emotionrecognition
-=================================
+"Speaker Detection and Conversation Analysis on Mobile Devices"
+===============================================================
 
 This is my Masters thesis project and It is associated with "Cooperative Systems" Chair of TUM Informatics Faculty. The scope of project is to implement, investigate and compare offline approaches for audio processing on Android device. It involves Smart Probing strategies, Recording, Voice Activity Detection, Feature Extraction and using machine learning techniques for Speaker Recognition. The challenge is to perform everything on Android device without Internet and then investiagate on performance, feasibility and battery consumption. Then comparison needs to be made if extracted features are sent to Server which is already functional.
 
