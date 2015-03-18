@@ -1,5 +1,6 @@
 package com.example.voicerecognizersp;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -53,21 +54,22 @@ public class MfccService extends Service {
 	 
 	// Unique Identification Number for the Notification.
 	// We use it on Notification start, and to cancel it.
-	private int NOTIFICATION_ID = 123;
+	private static final int NOTIFICATION_ID = 123;
     private NotificationManager notifManager;
- 
+    private static String notificationConText = "idle mode";
+    
 	final static String TAG = "MfccService"; 
-	final static String APP_NAME = "VoiceRecognizerSP";
+	//final static String APP_NAME = "VoiceRecognizerSP";
 
 	
 	///////////////////////
 	
 //////////Voice Recognizer specific ///////////
 	
-	private static int RECORDER_SOURCE = MediaRecorder.AudioSource.VOICE_RECOGNITION;
-	private static int RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
-	private static int RECORDER_AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT;
-	private static int RECORDER_SAMPLERATE = 16000; //16Hz frequency 
+	private static final int RECORDER_SOURCE = MediaRecorder.AudioSource.VOICE_RECOGNITION;
+	private static final int RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
+	private static final int RECORDER_AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT;
+	private static final int RECORDER_SAMPLERATE = 16000; //16Hz frequency 
 	
 	//private static int WINDOWS_TO_RECORD = 4;
 	
@@ -97,45 +99,24 @@ public class MfccService extends Service {
 	
 	public static boolean isRecording = false;
 	
-	private static int DROP_FIRST_X_WINDOWS = 1;
+	private static final int DROP_FIRST_X_WINDOWS = 1;
 	
 	//////////////////variabled added later by Wahib//////////////
 	private static final double windowsToRead = 2.5; //10;//10 = 20 seconds //2.5 = 5 seconds; //audio file duration in seconds
 	private static final int OVERLAP_SIZE_IN_SAMPLES = 160;
 	private static final int BUFFER_ITERATIONS_COUNT = 4;
 	
-	Handler repeatRecordHandler = null;
-	Runnable repeatRecordRunnable = null;
+	private Handler repeatRecordHandler = null;
+	private static Runnable repeatRecordRunnable = null;
 		
 	//private final int RECORDING_REPEAT_CYCLE = 10000; //1000 = 10 seconds
 	static int cycleCount = 0;
 	//final int maxCycleCount = 100; //use it to set total time to run; total time (sec) = maxCycleCount * RECORDING_REPEAT_CYCLE
-	
-	ArrayList<LinkedList<ArrayList<double[]>>> mfccFinalList;
-	private static final String appProcessName = "com.example.voicerecognizersp";
-	
+		
 	MonitoringData monitorOprObj;
-	static volatile MonitoringData monitorInstance = null;
+    FileOperations fileOprObj;
+		///////////
 	
-	///////////
-	
-	/**
-	* singleton method to ensure MonitoringData instance remains unique so that constructor is not called more than once
-	* 
-	* @param mainBindingActivity
-	* @return
-	*/
-	//http://howtodoinjava.com/2012/10/22/singleton-design-pattern-in-java/
-	public static MonitoringData getMonitoringInstance(Context context) {
-	  if (monitorInstance == null) {
-	      synchronized (MonitoringData.class) {
-	          monitorInstance = new MonitoringData(context);
-	      }
-	  }
-	  return monitorInstance;
-	}
-	
-
     public MfccService() {
         Log.i(TAG, "constructor done");
 
@@ -162,16 +143,12 @@ public class MfccService extends Service {
 	  System.loadLibrary("SuperpoweredExample");
 	}
 	
-
-    
-
 	 @Override
     public void onCreate() {
         Log.i(TAG, "onCreate called");
 
         init();
-
-                
+              
     }
 	 
 	 /**
@@ -181,9 +158,11 @@ public class MfccService extends Service {
 
 		 
         broadcaster = LocalBroadcastManager.getInstance(this);
-        monitorOprObj = getMonitoringInstance(this);
-    	mfccFinalList = new ArrayList<LinkedList<ArrayList<double[]>>>();
+        
+        fileOprObj = new FileOperations();
+        monitorOprObj = new MonitoringData(this, fileOprObj);
 
+       
         notifManager = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
 
         synchronized (this) {
@@ -221,11 +200,11 @@ public class MfccService extends Service {
     //http://stackoverflow.com/a/28144499/1016544
     private void runAsForeground() {
 
-    	startForeground(NOTIFICATION_ID, getMyNotification("normal mode"));
+    	startForeground(NOTIFICATION_ID, getMyNotification());//"normal mode"));
 	}
     
 	
-	private Notification getMyNotification(String text){
+	private Notification getMyNotification(){
 		
 	        // The PendingIntent to launch our activity if the user selects
 	        // this notification
@@ -233,8 +212,8 @@ public class MfccService extends Service {
 	        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0,  notificationIntent, Intent.FLAG_ACTIVITY_NEW_TASK);//Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);//
 	
 	        return new Notification.Builder(this)
-	                .setContentTitle(APP_NAME)
-	                .setContentText(text)
+	                .setContentTitle(SharedData.APP_NAME)
+	                .setContentText(notificationConText)
 	                .setSmallIcon(R.drawable.ic_launcher)
 	                .setContentIntent(pendingIntent).build(); 
 	}
@@ -243,7 +222,8 @@ public class MfccService extends Service {
 	*/
 	private void updateNotification(String text) {
 		
-	                Notification notification = getMyNotification(text);
+					notificationConText = text;
+	                Notification notification = getMyNotification();
 	
 	                notifManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 	                notifManager.notify(NOTIFICATION_ID, notification);
@@ -279,6 +259,8 @@ public class MfccService extends Service {
         
         notifManager.cancel(NOTIFICATION_ID);
         Log.i(TAG, "Cencelling notification");
+        
+        stopForeground(true);
 
     }
 	
@@ -288,11 +270,14 @@ public class MfccService extends Service {
      * runs in the same process as its clients, we don't need to deal with IPC.
      */
     public class LocalBinder extends Binder {
+    	
         MfccService getService() {
             Log.d(TAG, "getService done");
 
             // Return this instance of LocalService so clients can call public methods
             return MfccService.this;
+            
+            
         }
     }
 
@@ -334,23 +319,25 @@ public class MfccService extends Service {
     
     private void clean() {
 
-    	//Cleaning threads related
+    	//Cleaning threads and order matters.
     	
-    	if(audioRecorder != null) {
-			audioRecorder.stop();
-			audioRecorder.release();
-			audioRecorder = null;
-    	}
-		
-		if(recordingThread != null) {
+    	if(recordingThread != null) {
 			
 			Thread dummy = recordingThread;
 			recordingThread = null;
 			dummy.interrupt();
 		}
-		
-		recordingExecService.shutdown();
-		
+
+		recordingExecService.shutdown();		
+
+    	if(audioRecorder != null) {
+			audioRecorder.stop();
+			audioRecorder.release();
+			
+			if(audioRecorder.getRecordingState() == AudioRecord.RECORDSTATE_STOPPED)
+				audioRecorder = null;
+			
+    	}
 
         if(backgroundThread != null) {
 	        Thread dummy = backgroundThread;
@@ -358,16 +345,13 @@ public class MfccService extends Service {
 	        dummy.interrupt();
     	}
         
-        ///cleaning other objects
-        mfccFinalList.clear();
-        mfccFinalList = null;
-		
 
     	Log.i(TAG, "clean() released !");
     	
 
     }
-   
+    
+       
     
     
     public boolean isRecording()
@@ -430,18 +414,10 @@ public class MfccService extends Service {
 					isRecording = false;
 
 					sendResult("Stopped recording. Resetting...");
-			    	updateNotification("normal mode");
+			    	updateNotification("idle mode");
 
 					clean();
-//			    	
-//			    	audioRecorder.stop();
-//					audioRecorder.release();
-//					audioRecorder = null;
-//					
-//					recordingThread.interrupt();
-//					recordingThread = null;
-//					
-//					recordingExecService.shutdown();
+
 					
 					cycleCount=0;
 
@@ -559,7 +535,8 @@ public class MfccService extends Service {
 		featureMFCC = new MFCC(FFT_SIZE, MFCCS_VALUE, MEL_BANDS, RECORDER_SAMPLERATE);
 
 		freqBandIdx = new int[FREQ_BANDEDGES.length];
-		for (int i = 0; i < FREQ_BANDEDGES.length; i ++)
+		int freqBandLen = FREQ_BANDEDGES.length;
+		for (int i = 0; i < freqBandLen; i ++)
 		{
 			freqBandIdx[i] = Math.round((float)FREQ_BANDEDGES[i]*((float)FFT_SIZE/(float)RECORDER_SAMPLERATE));
 		}
@@ -634,8 +611,7 @@ public class MfccService extends Service {
 								featureCepstrums.removeLast();
 						}
 						
-				    	mfccFinalList.add(featureCepstrums);
-				    	
+				    	fileOprObj.appendToCsv(featureCepstrums);
 				    	
 				    	
 						return;
@@ -694,11 +670,19 @@ public class MfccService extends Service {
 
     	Log.i(TAG, "MFCC processAudioStream() Done Recording !");
 
-    	mfccFinalList.add(featureCepstrums);
-    	
-    	mfccFinalList.trimToSize();//optimization
+    	//mfccFinalList.add(featureCepstrums);
+    	fileOprObj.appendToCsv(featureCepstrums);
+
+    	//((ArrayList<LinkedList<ArrayList<double[]>>>) mfccFinalList).trimToSize();//optimization
     	
     	repeatCycle();
+    	
+    	
+    	///clearing up the most populated arrays/lists
+    	featureCepstrums.clear();
+    	featureCepstrums = null;
+    	cepstrumWindow.clear();
+    	cepstrumWindow = null;
 
 		return;
 	}
@@ -865,7 +849,8 @@ public class MfccService extends Service {
 	    
 	    float[] output = new float[input.length];
 	    
-	    for (int i = 0; i < input.length; i++)
+	    int inputLen = input.length; 
+	    for (int i = 0; i < inputLen; i++)
 	    {
 	        output[i] = (float) input[i];
 	    }
@@ -874,7 +859,9 @@ public class MfccService extends Service {
 	
 	public double getRMS(short[] buffer) {
 		double rms = 0;
-		for (int i = 0; i < buffer.length; i++) {
+	    int bufferLen = buffer.length;
+	    
+		for (int i = 0; i < bufferLen; i++) {
 			rms += buffer[i] * buffer[i];
 		}
 		return Math.sqrt(rms / buffer.length);
@@ -897,33 +884,24 @@ public class MfccService extends Service {
 	
 	private void repeatCycle()
 	{
-    		
-			//repeatRecordHandler.post(repeatRecordRunnable);//this should be always called at this position
-
-			//new Thread(repeatRecordRunnable).start();
-    		recordingExecService.submit(repeatRecordRunnable);
+    				
+		recordingExecService.submit(repeatRecordRunnable);
 
 
-    		
-	    	Log.i(TAG, "------------------------");
+		
+    	Log.i(TAG, "------------------------");
 
-	    	Log.i(TAG, "repeatCycle() new repeat initiated ..");
+    	Log.i(TAG, "repeatCycle() new repeat initiated ..");
 
-	    	//Log.i(TAG, "MFCC repeatCycle() cpu usage value : " + monitorOprObj.getCpuUsage());
-	    	
-	    	monitorOprObj.dumpRealtimeCpuValues();
-	    	
+    	//Log.i(TAG, "MFCC repeatCycle() cpu usage value : " + monitorOprObj.getCpuUsage());
+    	
+    	monitorOprObj.dumpRealtimeCpuValues();
+    	
 
 
 
 	}
 	
-	
-  	public ArrayList<LinkedList<ArrayList<double[]>>> getMfccList()
-  	{
-  		return mfccFinalList;
-  	}
-  	
 
 	public void sendResult(String message) {
 	    Intent intent = new Intent(COPA_RESULT);

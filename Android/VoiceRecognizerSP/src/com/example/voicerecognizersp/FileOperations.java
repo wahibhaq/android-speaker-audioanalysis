@@ -7,9 +7,14 @@ package com.example.voicerecognizersp;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 
+import android.content.Context;
 import android.os.Environment;
 import android.util.Log;
 
@@ -20,54 +25,43 @@ public class FileOperations
 {
 	
 
-
-	private static final File SD_PATH = Environment.getExternalStorageDirectory();
-	private static final String SD_FOLDER_PATH_PARENT = "/Thesis";
-	private static String SD_FOLDER_PATH = "/Thesis/VoiceRecognizer";
-	private static String SD_FOLDER_PATH_LOGS = SD_FOLDER_PATH + "/Logs"; 
-	public static String SD_FOLDER_PATH_CSV = SD_FOLDER_PATH + "/CSV"; 
-
-	final String csvFileName = "voicerecognizer_mfcc.csv"; //"20MfccFeatures_";
-	final String batteryFileName = "battery_data.txt";
-	final String memcpuFileName = "memcpu_data.txt";
-	final String cpuRealFileName = "cpu_real_usage_data.txt";
-
 	final static String TAG = "VoiceRecognizerSP"; //Voice Recognizer with Superpowered functionality
 
-	BindingActivity activityObj;
+	Context activityContext = null;
 	
+	static File csvFile;
 	
-	public FileOperations(BindingActivity mainBindingActivity)
+	public FileOperations(Context context)
 	{
-		activityObj = mainBindingActivity;
-		
-		resetDirs();
+		//only to be used by MonitoringData and BindingActivity
+		activityContext = context;
 
-		
+		csvFile = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_CSV + File.separator + SharedData.csvFileName);
+
+
 	}
 	
-	public FileOperations()
-	{
-		//only to be used by MonitoringData
+	public FileOperations() {
+		//only to be used by MfccService
 	}
 	
 		
 	public void resetDirs()
 	{
 
-		if(activityObj.getFFTType().equals("FFT_CT"))
-			SD_FOLDER_PATH = "/Thesis/VoiceRecognizer";
-		else if(activityObj.getFFTType().equals("FFT_SP"))
-			SD_FOLDER_PATH = "/Thesis/VoiceRecognizerSP";
+		if(SharedData.fftType.equals("FFT_CT"))
+			SharedData.SD_FOLDER_PATH = "/Thesis/VoiceRecognizer";
+		else if(SharedData.fftType.equals("FFT_SP"))
+			SharedData.SD_FOLDER_PATH = "/Thesis/VoiceRecognizerSP";
 		
-		SD_FOLDER_PATH_LOGS = SD_FOLDER_PATH + "/Logs"; 
-		SD_FOLDER_PATH_CSV = SD_FOLDER_PATH + "/CSV"; 
+		SharedData.SD_FOLDER_PATH_LOGS = SharedData.SD_FOLDER_PATH + "/Logs"; 
+		SharedData.SD_FOLDER_PATH_CSV = SharedData.SD_FOLDER_PATH + "/CSV"; 
 
 		if(recreateDirsIfExist())
 		{
 			//if successfully dir created
-			appendToBatteryFile("____New Experiment____" + activityObj.getFFTType());
-			appendToMemCpuFile("____New Experiment____" + activityObj.getFFTType());
+			appendToBatteryFile("____New Experiment____" + SharedData.fftType);
+			appendToMemCpuFile("____New Experiment____" + SharedData.fftType);
 		}
 		
 	}
@@ -90,10 +84,10 @@ public class FileOperations
 		{
 			 
 		     
-			 String logsfileStoragePath = Environment.getExternalStorageDirectory() + File.separator + SD_FOLDER_PATH_LOGS;
+			 String logsfileStoragePath = Environment.getExternalStorageDirectory() + File.separator + SharedData.SD_FOLDER_PATH_LOGS;
 			 File sdLogsStorageDir = new File(logsfileStoragePath);
 
-			 File file = new File(sdLogsStorageDir.toString() + File.separator + batteryFileName);
+			 File file = new File(sdLogsStorageDir.toString() + File.separator + SharedData.batteryFileName);
 
 		     
 		     if (sdLogsStorageDir.exists()) {
@@ -111,17 +105,20 @@ public class FileOperations
 	                 pw.close();
 	                 
 	                 
+	                 if(activityContext != null)
+	                	 ((BindingActivity) activityContext).showToast("Battery data stored in text file");
 	                 
-	                 activityObj.showToast("Battery data stored in text file");
 	     	    	Log.i(TAG, "MFCC battery data appended : " + dataToAppend);
 
 	             } catch (IOException e) {
 	                 e.printStackTrace();
 	             }
 	         }
-		     else
-		    	 activityObj.showToast("Battery File doesn't exist !");
-		     
+		     else {
+                 
+		    	 if(activityContext != null)
+                	 ((BindingActivity) activityContext).showToast("Battery File doesn't exist !");
+		     }
 		     
 
 
@@ -134,15 +131,15 @@ public class FileOperations
 		 */
 		public boolean recreateDirsIfExist()
 		{
-			File dirParent = new File(SD_PATH + SD_FOLDER_PATH_PARENT);
+			File dirParent = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_PARENT);
 			
-			File dirMain = new File(SD_PATH + SD_FOLDER_PATH);
+			File dirMain = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH);
 			
-			File dirCSV = new File(SD_PATH + SD_FOLDER_PATH_CSV);
+			File dirCSV = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_CSV);
 			if(dirCSV.exists())
 				deleteRecursive(dirCSV);
 			
-			File dirLogs = new File(SD_PATH + SD_FOLDER_PATH_LOGS);
+			File dirLogs = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_LOGS);
 			if(dirLogs.exists())
 				deleteRecursive(dirLogs);
 			
@@ -161,7 +158,9 @@ public class FileOperations
 			}
 			catch(Exception e)
 			{
-		    	 activityObj.showToast("Unable to create Directories !");
+                if(activityContext != null)
+                	((BindingActivity) activityContext).showToast("Unable to create Directories !");
+
 
 				e.printStackTrace();
 				return false;
@@ -179,10 +178,10 @@ public class FileOperations
 		 */
 		public boolean isAllDirsExist()
 		{
-			File dirParent = new File(SD_PATH + SD_FOLDER_PATH_PARENT);	
-			File dirMain = new File(SD_PATH + SD_FOLDER_PATH);
-			File dirCSV = new File(SD_PATH + SD_FOLDER_PATH_CSV);
-			File dirLogs = new File(SD_PATH + SD_FOLDER_PATH_LOGS);
+			File dirParent = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_PARENT);	
+			File dirMain = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH);
+			File dirCSV = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_CSV);
+			File dirLogs = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_LOGS);
 			
 			if(dirParent.exists() && dirMain.exists() && dirCSV.exists() && dirLogs.exists())
 				return true;
@@ -192,19 +191,19 @@ public class FileOperations
 		
 		public void resetFiles()
 		{
-			 String logsfileStoragePath = Environment.getExternalStorageDirectory() + File.separator + SD_FOLDER_PATH_LOGS;
+			 String logsfileStoragePath = Environment.getExternalStorageDirectory() + File.separator + SharedData.SD_FOLDER_PATH_LOGS;
 			 File sdLogsStorageDir = new File(logsfileStoragePath);
 
-			 File fileBattery = new File(sdLogsStorageDir.toString() + File.separator + batteryFileName);
-			 File fileMemCpu = new File(sdLogsStorageDir.toString() + File.separator + memcpuFileName);
+			 File fileBattery = new File(sdLogsStorageDir.toString() + File.separator + SharedData.batteryFileName);
+			 File fileMemCpu = new File(sdLogsStorageDir.toString() + File.separator +SharedData. memcpuFileName);
 			 
 			 fileBattery.delete();
 		     fileMemCpu.delete();
 		     
-		     String csvfileStoragePath = Environment.getExternalStorageDirectory() + File.separator + SD_FOLDER_PATH_CSV;
+		     String csvfileStoragePath = Environment.getExternalStorageDirectory() + File.separator + SharedData.SD_FOLDER_PATH_CSV;
 			 File sdCsvStorageDir = new File(csvfileStoragePath);
 
-			 File fileCSV = new File(sdCsvStorageDir.toString() + File.separator + csvFileName);
+			 File fileCSV = new File(sdCsvStorageDir.toString() + File.separator + SharedData.csvFileName);
 			 fileCSV.delete();
 		     
 		}
@@ -217,21 +216,16 @@ public class FileOperations
 		public void appendToMemCpuFile(String dataToAppend)
 		{
 			 		     
-			 String logsfileStoragePath = Environment.getExternalStorageDirectory() + File.separator + SD_FOLDER_PATH_LOGS;
+			 String logsfileStoragePath = Environment.getExternalStorageDirectory() + File.separator + SharedData.SD_FOLDER_PATH_LOGS;
 			 File sdLogsStorageDir = new File(logsfileStoragePath);
 
-			 File file = new File(sdLogsStorageDir.toString() + File.separator + memcpuFileName);
+			 File file = new File(sdLogsStorageDir.toString() + File.separator + SharedData.memcpuFileName);
 
-		     
-		     
-		     //if (file.exists()) {
 		     if (sdLogsStorageDir.exists()) {
 
 		    	 PrintWriter pw;
 
 	             try {
-	            
-	            	 
 	                 
 	                 FileOutputStream fos = new FileOutputStream(file, true);
 	                 pw = new PrintWriter(fos);
@@ -239,17 +233,22 @@ public class FileOperations
 	                 pw.flush();
 	                 pw.close();
 	                 
+	                 if(activityContext != null)
+	                	 ((BindingActivity) activityContext).showToast("Memory & CPU data stored in text file");
+
+	              
 	                 
-	                 
-	                 activityObj.showToast("Memory & CPU data stored in text file");
 	     	    	Log.i(TAG, "MFCC Memory & CPU data appended : " + dataToAppend);
 
 	             } catch (IOException e) {
 	                 e.printStackTrace();
 	             }
 	         }
-		     else
-		    	 activityObj.showToast("MemCpu File doesn't exist !");
+		     else {
+		    	 
+                 if(activityContext != null)
+                	 ((BindingActivity) activityContext).showToast("MemCpu File doesn't exist !");
+		     }
 		     
 		     
 
@@ -264,10 +263,10 @@ public class FileOperations
 		public void appendToCpuUsageFile(String dataToAppend)
 		{
 			 		     
-			 String logsfileStoragePath = Environment.getExternalStorageDirectory() + File.separator + SD_FOLDER_PATH_LOGS;
+			 String logsfileStoragePath = Environment.getExternalStorageDirectory() + File.separator + SharedData.SD_FOLDER_PATH_LOGS;
 			 File sdLogsStorageDir = new File(logsfileStoragePath);
 
-			 File file = new File(sdLogsStorageDir.toString() + File.separator + cpuRealFileName);
+			 File file = new File(sdLogsStorageDir.toString() + File.separator + SharedData.cpuRealFileName);
 
 		     
 		     
@@ -285,9 +284,10 @@ public class FileOperations
 	                 pw.flush();
 	                 pw.close();
 	                 
+	                 if(activityContext != null)
+	                	 ((BindingActivity) activityContext).showToast("CPU Real-time Usage data stored in text file");
+
 	                 
-	                 
-	                 //activityObj.showToast("CPU Real-time Usage data stored in text file");
 	     	    	Log.i(TAG, "MFCC CPU real-time usage data appended : " + dataToAppend);
 
 	             } catch (IOException e) {
@@ -298,6 +298,54 @@ public class FileOperations
 		     
 
 
+		}
+		
+		
+		/**
+		 * Takes the final compiled list of cepstral features and stores them in a csv file on the sdcard.
+		 * Each frame is represented by its MFCCs (without energy). 
+		 * 
+		 * @param arrayList
+		 */
+		public void appendToCsv(LinkedList<ArrayList<double[]>> featureList) {
+			
+			
+
+			PrintWriter csvWriter;
+			try
+			{
+			    
+				
+				//storage/emulated/0/Thesis/VoiceRecognizerSP/CSV/20MfccFeatures_1.csv
+				//File csvFile = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_CSV + File.separator + SharedData.csvFileName);
+				
+				if(!csvFile.exists())
+					csvFile = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_CSV + File.separator + SharedData.csvFileName);
+				
+				csvWriter = new  PrintWriter(new FileWriter(csvFile,true));
+				
+				for (ArrayList<double[]> window : featureList) {
+					for (double[] newline : window) {
+						for (double element : newline) {
+							csvWriter.print(element + ",");
+						}
+						csvWriter.print("\r\n");
+					}
+				}
+			
+
+				csvWriter.close();
+				
+		    	Log.i(TAG, "MFCC audio2csv() data dumped");
+		    	
+
+		    	
+
+			}
+			catch (Exception e)
+			{
+				e.printStackTrace();
+			}
 		}
 		
 

@@ -9,12 +9,7 @@ import java.util.Calendar;
 import java.util.LinkedList;
 import java.util.Locale;
 
-import com.example.voicerecognizersp.MfccService.LocalBinder;
-
 import android.app.Activity;
-import android.app.Notification;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -23,7 +18,6 @@ import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.BatteryManager;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.IBinder;
 import android.text.format.DateFormat;
 import android.util.Log;
@@ -35,72 +29,22 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.example.voicerecognizersp.MfccService.LocalBinder;
+
 public class BindingActivity extends Activity {
 	
 	 MfccService mService;
 	
 	 boolean isBound = false;
-	 Intent intentBindService;
 	    
 	 Button btnStartRecording, btnStopRecording;
 	 TextView txtMessage;
 	 final static String TAG = "BindingActivity";
 
 	 BroadcastReceiver receiver;
-	 
-
-	 //////File Operations related//////////
-     public static String fftType = "FFT_SP"; //FFT_CT : Cooley-Tukey and other option is FFT_SP : Superpowered
-
-	 public static final File SD_PATH = Environment.getExternalStorageDirectory();
-	 public static String SD_FOLDER_PATH = "/Thesis/VoiceRecognizer"; //"/Thesis/VoiceRecognizerSP";
-	 public static String SD_FOLDER_PATH_CSV = SD_FOLDER_PATH + "/CSV"; 
-
-	 private static final String csvFileName = "voicerecognizer_mfcc.csv"; //"20MfccFeatures_";
-	 
+	
 	 FileOperations fileOprObj;
 	 MonitoringData monitorOprObj;
-	 
-	 static volatile FileOperations fileInstance = null;
-	 static volatile MonitoringData monitorInstance = null;
-	 
-
-		/**
-		 * singleton method to ensure FileOperations instance remains unique so that constructor is not called more than once
-		 * 
-		 * @param mainBindingActivity
-		 * @return
-		 */
-		//http://howtodoinjava.com/2012/10/22/singleton-design-pattern-in-java/
-		public static FileOperations getFileInstance(BindingActivity mainBindingActivity) {
-	        if (fileInstance == null) {
-	            synchronized (FileOperations.class) {
-	                fileInstance = new FileOperations(mainBindingActivity);
-	            }
-	        }
-	        return fileInstance;
-	    }
-		
-		/**
-		 * singleton method to ensure MonitoringData instance remains unique so that constructor is not called more than once
-		 * 
-		 * @param mainBindingActivity
-		 * @return
-		 */
-		//http://howtodoinjava.com/2012/10/22/singleton-design-pattern-in-java/
-		public static MonitoringData getMonitoringInstance(BindingActivity mainBindingActivity) {
-	        if (monitorInstance == null) {
-	            synchronized (MonitoringData.class) {
-	                monitorInstance = new MonitoringData(mainBindingActivity);
-	            }
-	        }
-	        return monitorInstance;
-	    }
-		
-		
-	//////////////////////////////
-	 
-
 	 
 	 
 	 @Override
@@ -108,9 +52,9 @@ public class BindingActivity extends Activity {
 	        super.onCreate(savedInstanceState);
 	        setContentView(R.layout.activity_main);
 
-	        fileOprObj = getFileInstance(this);
-	        monitorOprObj = getMonitoringInstance(this);
-	        
+	        fileOprObj = new FileOperations(this);
+	        monitorOprObj = new MonitoringData(this, fileOprObj);
+
 	    	btnStartRecording = (Button)findViewById(R.id.buttonStartRec);
 			btnStopRecording = (Button)findViewById(R.id.buttonStopRec);
 			txtMessage = (TextView) findViewById(R.id.txtMessage);
@@ -127,17 +71,12 @@ public class BindingActivity extends Activity {
 							
 							// TODO Auto-generated method stub
 							if (!mService.isRecording()) {
-		
-								monitorBatteryUsage("Start");
-				        		monitorCpuAndMemoryUsage("Start");
-	
-								mService.startMfccExtraction();
-							
+								
+								performStartRecording();
+						        
 								txtMessage.setText("Recording in progress ...");
 								btnStartRecording.setEnabled(false);
-								
-								//finish();
-								
+																
 					        }
 							else {
 								showToast("Audio process already running !");
@@ -327,6 +266,8 @@ public class BindingActivity extends Activity {
 		
 	}
     
+   
+    
     
     ////////////////////////MFCC Operations//////
     
@@ -355,18 +296,6 @@ public class BindingActivity extends Activity {
 			    	
 			    	monitorOprObj.dumpMeanAndSdForCpu();
 					
-					// storing to csv done on a separate thread
-				    Runnable runnable = new Runnable() {
-				      @Override
-				      public void run() {
-				           
-							audioFeatures2csv(mService.getMfccList());
-							
-				        }
-				      
-				    };
-				    
-				    new Thread(runnable).start(); 
 				    
 				    //stopping service
 				   // Intent intent = new Intent(this, MfccService.class);
@@ -376,26 +305,34 @@ public class BindingActivity extends Activity {
         	}
         }
     }
+    
+    private void performStartRecording() {
+    	
+    	fileOprObj.resetDirs();//recreate before dumping fresh data
+    	
+		monitorBatteryUsage("Start");
+		monitorCpuAndMemoryUsage("Start");
+
+		mService.startMfccExtraction();
+	
+    }
 	    
 	 
     private void setFFTtype()
     {
-    	if(fftType.equals("FFT_CT"))
+    	if(SharedData.fftType.equals("FFT_CT"))
 		{
-			SD_FOLDER_PATH = "/Thesis/VoiceRecognizer";
+    		SharedData.SD_FOLDER_PATH = "/Thesis/VoiceRecognizer";
 			txtMessage.setText("MFCC with Cooley-Tukey");
 		}
-		else if(fftType.equals("FFT_SP"))
+		else if(SharedData.fftType.equals("FFT_SP"))
 		{
-			SD_FOLDER_PATH = "/Thesis/VoiceRecognizerSP";
+			SharedData.SD_FOLDER_PATH = "/Thesis/VoiceRecognizerSP";
 			txtMessage.setText("MFCC with Superpowered");
 		}
     }
     
-	public String getFFTType()
-	{
-		return fftType;
-	}
+	
 	
 
 
@@ -415,12 +352,12 @@ public class BindingActivity extends Activity {
 		    
 			
 			//storage/emulated/0/Thesis/VoiceRecognizerSP/CSV/20MfccFeatures_1.csv
-			File file = new File(SD_PATH + SD_FOLDER_PATH_CSV + File.separator + csvFileName);
+			File csvFile = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_CSV + File.separator + SharedData.csvFileName);
 			
-			if(!file.exists())
-				file = new File(SD_PATH + SD_FOLDER_PATH_CSV + File.separator + csvFileName);
+			//if(!file.exists())
+			//	file = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_CSV + File.separator + SharedData.csvFileName);
 			
-			csvWriter = new  PrintWriter(new FileWriter(file,true));
+			csvWriter = new  PrintWriter(new FileWriter(csvFile,true));
 			
 			for(LinkedList<ArrayList<double[]>> linkedList : arrayList) {
 				for (ArrayList<double[]> window : linkedList) {
@@ -450,6 +387,11 @@ public class BindingActivity extends Activity {
 			
 	    	Log.i(TAG, "MFCC audio2csv() done");
 	    	
+	    	arrayList.clear();
+	    	arrayList = null;
+	    	
+	    	//mService.releaseLists();
+	    	
 
 	    	
 
@@ -477,7 +419,7 @@ public class BindingActivity extends Activity {
 		
 		if(state.equals("AddExperiment"))
 		{
-			line = "\n\n\n____New Experiment____" + fftType;
+			line = "\n\n\n____New Experiment____" + SharedData.fftType;
 			fileOprObj.appendToMemCpuFile( line );
 			
 		}
@@ -507,7 +449,7 @@ public class BindingActivity extends Activity {
 		
 		if(state.equals("AddExperiment"))
 		{
-			line = "\n\n\n____New Experiment____" + fftType;
+			line = "\n\n\n____New Experiment____" + SharedData.fftType;
 			fileOprObj.appendToBatteryFile( line );
 
 		}
@@ -518,7 +460,7 @@ public class BindingActivity extends Activity {
           mIntentFilter.addAction(Intent.ACTION_BATTERY_CHANGED);  
           mIntentFilter.addAction(Intent.ACTION_BATTERY_OKAY);  
           Intent batteryIntent = registerReceiver(null, mIntentFilter);  
-          float batteryLevel = getBatteryLevel(batteryIntent);  
+          double batteryLevel = getBatteryLevel(batteryIntent);  
           Log.i(TAG, "MFCC Battery Level : " + String.valueOf(batteryLevel));  
           
           fileOprObj.appendToBatteryFile(state + " --- " + String.valueOf(batteryLevel) + " --- " + getFormattedTimeStamp());
@@ -529,13 +471,13 @@ public class BindingActivity extends Activity {
           
 	}
 	
-	 public float getBatteryLevel(Intent batteryIntent) {  
+	 public double getBatteryLevel(Intent batteryIntent) {  
          int level = batteryIntent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);  
          int scale = batteryIntent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);  
          if (level == -1 || scale == -1) {  
               return 50.0f;  
          }  
-         return ((float) level / (float) scale) * 100.0f;  
+         return ((double) level / (double) scale) * 100.0f;  
     }  
 	 
 	 private String getFormattedTimeStamp() {
@@ -581,16 +523,16 @@ public class BindingActivity extends Activity {
 	    		 Toast.makeText(this, "Switch not possible because recording is running !", Toast.LENGTH_SHORT).show();
 	    	 else
 	    	 {
-	    		 if(fftType.equals("FFT_CT"))
+	    		 if(SharedData.fftType.equals("FFT_CT"))
 	    		 {
 	    			 //Swith to SP
 	    			 
-	    			 fftType = "FFT_SP";
-	    			 mService.setFFTType(fftType);
+	    			 SharedData.fftType = "FFT_SP";
+	    			 mService.setFFTType(SharedData.fftType);
 	    			 txtMessage.setText("MFCC with Superpowered");
 	    			 
-	    			 SD_FOLDER_PATH = "/Thesis/VoiceRecognizerSP";
-	    			 SD_FOLDER_PATH_CSV = SD_FOLDER_PATH + "/CSV"; 
+	    			 SharedData.SD_FOLDER_PATH = "/Thesis/VoiceRecognizerSP";
+	    			 SharedData. SD_FOLDER_PATH_CSV = SharedData.SD_FOLDER_PATH + "/CSV"; 
 
 	    			 fileOprObj.resetDirs();
 
@@ -600,16 +542,16 @@ public class BindingActivity extends Activity {
 	    			 monitorCpuAndMemoryUsage("AddExperiment");
 
 	    		 }
-	    		 else if(fftType.equals("FFT_SP"))
+	    		 else if(SharedData.fftType.equals("FFT_SP"))
 	    		 {
 	    			 //Switch to CT
 	
-	    			 fftType = "FFT_CT";
-	    			 mService.setFFTType(fftType);
+	    			 SharedData.fftType = "FFT_CT";
+	    			 mService.setFFTType(SharedData.fftType);
 	    			 txtMessage.setText("MFCC with Cooley-Tukey");
 	    			 
-	    			 SD_FOLDER_PATH = "/Thesis/VoiceRecognizer";
-	    			 SD_FOLDER_PATH_CSV = SD_FOLDER_PATH + "/CSV";
+	    			 SharedData.SD_FOLDER_PATH = "/Thesis/VoiceRecognizer";
+	    			 SharedData.SD_FOLDER_PATH_CSV = SharedData.SD_FOLDER_PATH + "/CSV";
 	    			 
 	    			 fileOprObj.resetDirs();
 

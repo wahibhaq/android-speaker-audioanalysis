@@ -21,7 +21,8 @@ import android.util.Log;
 public class MonitoringData {
 	
 	private Context appContext;
-    private static final String appProcessName = "com.example.voicerecognizersp";
+	SharedData shared = null;
+	
     final static String TAG = "VoiceRecognizerSP"; //Voice Recognizer with Superpowered functionality
 
 	FileOperations fileOprObj;
@@ -33,30 +34,23 @@ public class MonitoringData {
 
 	Thread fetchCpuThread = null;
 
-    
-    /**
-	 * singleton method to ensure FileOperations instance remains unique so that constructor is not called more than once
-	 * 
-	 * @param mainBindingActivity
-	 * @return
-	 */
-	//http://howtodoinjava.com/2012/10/22/singleton-design-pattern-in-java/
-	public static FileOperations getFileInstance() {
-        if (fileInstance == null) {
-            synchronized (FileOperations.class) {
-                fileInstance = new FileOperations();
-            }
-        }
-        return fileInstance;
-    }
 	
-	
-	public MonitoringData(Context context)
-	{
+	public MonitoringData(Context context)	{
 		appContext = context;
-        fileOprObj = getFileInstance();
         
+		shared = new SharedData();
+	}
+	
+	public MonitoringData() {
+		//only used by MfccService
 		
+		shared = new SharedData();
+	}
+	
+	public MonitoringData(Context context, FileOperations obj) {
+		appContext = context;
+		fileOprObj = obj;
+		shared = new SharedData();
 	}
 	
 
@@ -75,7 +69,7 @@ public class MonitoringData {
 		Process p = null;
 		try {
 			
-			p = Runtime.getRuntime().exec(new String[] { "sh", "-c", "top -n 1 | grep " + appProcessName });
+			p = Runtime.getRuntime().exec(new String[] { "sh", "-c", "top -n 1 | grep " + SharedData.appProcessName });//appProcessName });
 			
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -134,7 +128,7 @@ public class MonitoringData {
 		for(RunningAppProcessInfo processInfo : mgr.getRunningAppProcesses())
 		{
 			
-	        if(processInfo.processName.equals(appProcessName) ){
+	        if(processInfo.processName.equals(SharedData.appProcessName)) {//appProcessName) ){
 	        	//Log.i(TAG, " MFCC pid: "+processInfo.pid);                    
 			    int[] pids = new int[1];
 			    pids[0] = processInfo.pid;
@@ -203,6 +197,9 @@ public class MonitoringData {
 	    	if(getCpuUsage().length() > 0)
 	    		statObj.addValue(Double.valueOf(getCpuUsage().toString()));
 		}
+		
+	    Log.i(TAG, "dumpRealtimeCpuValues()");
+
 		
 	}
 	
