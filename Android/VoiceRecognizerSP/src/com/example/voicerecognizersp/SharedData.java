@@ -5,7 +5,7 @@ import java.io.File;
 import android.os.Environment;
 
 /**
- * This class maintains all memors which remain mostly constant and shared within all classes 
+ * This class maintains all parameters which remain constant and shared within all classes 
  * 
  * @author Wahib-Ul-Haq
  *

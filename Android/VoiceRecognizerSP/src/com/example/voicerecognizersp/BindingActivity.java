@@ -1,12 +1,7 @@
 package com.example.voicerecognizersp;
 
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.PrintWriter;
-import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.LinkedList;
 import java.util.Locale;
 
 import android.app.Activity;
@@ -30,6 +25,14 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.voicerecognizersp.MfccService.LocalBinder;
+
+/**
+ * Main Activity which handles starting & stopping of experiment and binded with the 
+ * background Service {@link MfccService} 
+ * 
+ * @author Wahib-Ul-Haq 
+ * Mar 22, 2015
+ */
 
 public class BindingActivity extends Activity {
 	
@@ -106,27 +109,31 @@ public class BindingActivity extends Activity {
 				@Override
 				public void onClick(View v) {
 					// TODO Auto-generated method stub
-					   
-			         performStopRecording();
-			         
-					 btnStartRecording.setEnabled(true);
+					
+					if(mService != null) {
+						
+						// TODO Auto-generated method stub
+						if (mService.isRecording()) {
+					
+					         performStopRecording();
+					         
+							 btnStartRecording.setEnabled(true);
+						}					 
+						else {
+								showToast("Audio process already Stopped!");
+				    	}
+					}
+					else {//for testing only without binder
+						
+						showToast("Can't connect with mService !");
+						
+					}
 		            
 				}
 
 	    	});
 
-			receiver = new BroadcastReceiver() {
-		        @Override
-		        public void onReceive(Context context, Intent intent) {
-		        	
-		            String msgFromService = intent.getStringExtra(MfccService.COPA_MESSAGE);
-		            // do something here.
-		            
-		            txtMessage.setText(msgFromService);
-		        }
-		    };
-		    
-		    
+			
 		    //initiating service
 			Intent intentService = new Intent(this, MfccService.class);
 			startService(intentService);
@@ -137,7 +144,21 @@ public class BindingActivity extends Activity {
 			
 	 }//onCreate ends here
  
-    
+	 public static class ResponseReceiver extends BroadcastReceiver {
+		 
+		 public static final String LOCAL_ACTION = "com.example.voicerecognizersp.mfccservice.COMMUNICATION";
+		 
+		 @Override
+		 public void onReceive(Context context, Intent intent) {
+			 
+	        	String outputText = intent.getStringExtra(MfccService.COPA_MESSAGE);
+	        	Toast.makeText(context, outputText, Toast.LENGTH_LONG).show();
+	   		 	Log.i(TAG, "onReceive received : " + outputText);
+
+	       
+		 }
+	 }
+
 	 @Override
 	 protected void onStart() {
 		 super.onStart();
@@ -243,9 +264,7 @@ public class BindingActivity extends Activity {
     	unbindService(mConnection);
     	isBound = false;
         
-    	//optimization
-    	mService = null;
-        mConnection = null;
+    	
 
     }
     
@@ -272,38 +291,20 @@ public class BindingActivity extends Activity {
     ////////////////////////MFCC Operations//////
     
     private void performStopRecording() {
+  
+    	mService.stopRecording();
     	
-        if(!isBound)
-        {
-			Log.i(TAG, "not bound - everything definitely stopped now !");
-			txtMessage.setText("not bound - everything definitely stopped now !");
-        	
-    		//Toast.makeText(getApplicationContext(), "Recording is definitey stopped now !!", Toast.LENGTH_SHORT).show();
+    	txtMessage.setText("Recording stopped !");
+    	monitorBatteryUsage("End  ");
+    	monitorCpuAndMemoryUsage("End  ");
+    	
+    	monitorOprObj.dumpMeanAndSdForCpu();
+		
+	    
+	    //stopping service
+	   // Intent intent = new Intent(this, MfccService.class);
+	   // stopService(intent);
 
-        }
-        else
-        {
-        	if(mService != null) {
-        		
-		        //stop MFCC tasks running in background service
-    			if(mService.isRecording()) {
-		
-		        	mService.stopRecording();
-		        	
-		        	txtMessage.setText("Recording stopped !");
-		        	monitorBatteryUsage("End  ");
-			    	monitorCpuAndMemoryUsage("End  ");
-			    	
-			    	monitorOprObj.dumpMeanAndSdForCpu();
-					
-				    
-				    //stopping service
-				   // Intent intent = new Intent(this, MfccService.class);
-				   // stopService(intent);
-		
-		        }
-        	}
-        }
     }
     
     private void performStartRecording() {
@@ -332,79 +333,7 @@ public class BindingActivity extends Activity {
 		}
     }
     
-	
-	
-
-
-	/**
-	 * Takes the final compiled list of cepstral features and stores them in a csv file on the sdcard.
-	 * Each frame is represented by its MFCCs (without energy). 
-	 * 
-	 * @param arrayList
-	 */
-	public void audioFeatures2csv(ArrayList<LinkedList<ArrayList<double[]>>> arrayList) {
 		
-		
-
-		PrintWriter csvWriter;
-		try
-		{
-		    
-			
-			//storage/emulated/0/Thesis/VoiceRecognizerSP/CSV/20MfccFeatures_1.csv
-			File csvFile = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_CSV + File.separator + SharedData.csvFileName);
-			
-			//if(!file.exists())
-			//	file = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_CSV + File.separator + SharedData.csvFileName);
-			
-			csvWriter = new  PrintWriter(new FileWriter(csvFile,true));
-			
-			for(LinkedList<ArrayList<double[]>> linkedList : arrayList) {
-				for (ArrayList<double[]> window : linkedList) {
-					for (double[] newline : window) {
-						for (double element : newline) {
-							csvWriter.print(element + ",");
-						}
-						csvWriter.print("\r\n");
-					}
-				}
-			}
-
-			csvWriter.close();
-			
-			
-			
-          // code runs in a thread
-          runOnUiThread(new Runnable() {
-        	@Override
-          	public void run() {
-				Toast.makeText(getApplicationContext(), "Features stored in csv file !", Toast.LENGTH_SHORT).show();
-
-        	  	txtMessage.setText("Features successfully stored in csv file !");
-          	}
-          });
-          
-			
-	    	Log.i(TAG, "MFCC audio2csv() done");
-	    	
-	    	arrayList.clear();
-	    	arrayList = null;
-	    	
-	    	//mService.releaseLists();
-	    	
-
-	    	
-
-		}
-		catch (Exception e)
-		{
-			e.printStackTrace();
-		}
-	}
-	
-	
-	
-	
 	
 	/**
 	 * Function to monitor CPU usage and Memory allocation solely due to this application.
@@ -486,7 +415,7 @@ public class BindingActivity extends Activity {
 
 		    Calendar cal = Calendar.getInstance(Locale.ENGLISH);
 		    cal.setTimeInMillis(tsLong);
-		    String date = DateFormat.format("dd-MM-yyyy_HH:mm:ss", cal).toString();
+		    String date = DateFormat.format("dd-MM-yyyy_hh:mm:ss", cal).toString();
 		    return date;
 		}
 	
@@ -532,7 +461,7 @@ public class BindingActivity extends Activity {
 	    			 txtMessage.setText("MFCC with Superpowered");
 	    			 
 	    			 SharedData.SD_FOLDER_PATH = "/Thesis/VoiceRecognizerSP";
-	    			 SharedData. SD_FOLDER_PATH_CSV = SharedData.SD_FOLDER_PATH + "/CSV"; 
+	    			 SharedData.SD_FOLDER_PATH_CSV = SharedData.SD_FOLDER_PATH + "/CSV"; 
 
 	    			 fileOprObj.resetDirs();
 

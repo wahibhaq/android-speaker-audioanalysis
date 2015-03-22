@@ -1,6 +1,5 @@
 package com.example.voicerecognizersp;
 
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -20,7 +19,6 @@ import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.os.Binder;
 import android.os.Build;
-import android.os.Handler;
 import android.os.IBinder;
 import android.os.Trace;
 import android.support.v4.content.LocalBroadcastManager;
@@ -31,6 +29,15 @@ import com.example.javagmm.FrequencyProperties;
 import com.example.javagmm.MFCC;
 import com.example.javagmm.Window;
 
+/**
+ * The background service which performs the main audio recording, feature extraction and monitoring
+ * operations. Service also shows notification in the status bar and the current mode. Service is 
+ * binded with Activity {@link BindingActivity}
+ * 
+ * @author Wahib-Ul-Haq 
+ * Mar 22, 2015
+ *
+ */
 public class MfccService extends Service {
 
 	private boolean mStop = false;
@@ -48,9 +55,7 @@ public class MfccService extends Service {
 	LocalBroadcastManager broadcaster;
 	static final public String COPA_RESULT = "com.example.voicerecognizersp.MfccService.REQUEST_PROCESSED";
 	static final public String COPA_MESSAGE = "UINotification";
-	
-	Handler handler;
-		
+			
 	 
 	// Unique Identification Number for the Notification.
 	// We use it on Notification start, and to cancel it.
@@ -91,7 +96,6 @@ public class MfccService extends Service {
 	private static int[] freqBandIdx = null;
 	public double[] featureBuffer = null;
 	
-	private Thread recordingThread = null;
 	private FFT featureFFT = null; //not using now and instead using FFT from Superpowered Sdk
 	private MFCC featureMFCC = null;
 	private Window featureWin = null;
@@ -106,7 +110,6 @@ public class MfccService extends Service {
 	private static final int OVERLAP_SIZE_IN_SAMPLES = 160;
 	private static final int BUFFER_ITERATIONS_COUNT = 4;
 	
-	private Handler repeatRecordHandler = null;
 	private static Runnable repeatRecordRunnable = null;
 		
 	//private final int RECORDING_REPEAT_CYCLE = 10000; //1000 = 10 seconds
@@ -157,7 +160,7 @@ public class MfccService extends Service {
 	 private boolean init() {
 
 		 
-        broadcaster = LocalBroadcastManager.getInstance(this);
+        //broadcaster = LocalBroadcastManager.getInstance(this);
         
         fileOprObj = new FileOperations();
         monitorOprObj = new MonitoringData(this, fileOprObj);
@@ -321,12 +324,6 @@ public class MfccService extends Service {
 
     	//Cleaning threads and order matters.
     	
-    	if(recordingThread != null) {
-			
-			Thread dummy = recordingThread;
-			recordingThread = null;
-			dummy.interrupt();
-		}
 
 		recordingExecService.shutdown();		
 
@@ -413,7 +410,7 @@ public class MfccService extends Service {
 				{
 					isRecording = false;
 
-					sendResult("Stopped recording. Resetting...");
+					sendMsgToActivity("Stopped recording & Resetting");
 			    	updateNotification("idle mode");
 
 					clean();
@@ -427,7 +424,6 @@ public class MfccService extends Service {
 				{
 					isRecording = false;
 					
-					sendResult("Recording already in stopped state !");
 			    	Log.i(TAG, "already in stopped state !");
 
 
@@ -903,14 +899,26 @@ public class MfccService extends Service {
 	}
 	
 
-	public void sendResult(String message) {
+	/*public void sendResult(String message) {
 	    Intent intent = new Intent(COPA_RESULT);
 	    
 	    if(message != null)
 	        intent.putExtra(COPA_MESSAGE, message);
 	    
 	    broadcaster.sendBroadcast(intent);
+	}*/
+	
+	public void sendMsgToActivity(String message) {
+	    Intent broadcastIntent = new Intent();
+	    broadcastIntent.setAction(BindingActivity.ResponseReceiver.LOCAL_ACTION);
+	    
+	    if(message != null)
+	        broadcastIntent.putExtra(COPA_MESSAGE, message);
+	    
+	    LocalBroadcastManager localBroadcastManager = LocalBroadcastManager.getInstance(this);
+	    localBroadcastManager.sendBroadcast(broadcastIntent);
 	}
+	
     
 
     

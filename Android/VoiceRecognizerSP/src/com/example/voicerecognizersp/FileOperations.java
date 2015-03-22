@@ -12,37 +12,37 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.LinkedList;
-import java.util.List;
 
 import android.content.Context;
-import android.os.Environment;
 import android.util.Log;
 
 
-
+/**
+ * Manages all operations which involved writing to files on sd card
+ * 
+ * @author Wahib-Ul-Haq 
+ * Mar 22, 2015
+ *
+ */
 
 public class FileOperations
 {
 	
 
-	final static String TAG = "VoiceRecognizerSP"; //Voice Recognizer with Superpowered functionality
+	final static String TAG = "FileOperations"; //Voice Recognizer with Superpowered functionality
 
 	Context activityContext = null;
-	
-	static File csvFile;
-	
+		
 	public FileOperations(Context context)
 	{
 		//only to be used by MonitoringData and BindingActivity
 		activityContext = context;
 
-		csvFile = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_CSV + File.separator + SharedData.csvFileName);
-
-
 	}
 	
 	public FileOperations() {
 		//only to be used by MfccService
+		
 	}
 	
 		
@@ -62,6 +62,7 @@ public class FileOperations
 			//if successfully dir created
 			appendToBatteryFile("____New Experiment____" + SharedData.fftType);
 			appendToMemCpuFile("____New Experiment____" + SharedData.fftType);
+			
 		}
 		
 	}
@@ -84,7 +85,7 @@ public class FileOperations
 		{
 			 
 		     
-			 String logsfileStoragePath = Environment.getExternalStorageDirectory() + File.separator + SharedData.SD_FOLDER_PATH_LOGS;
+			 String logsfileStoragePath = SharedData.SD_PATH + File.separator + SharedData.SD_FOLDER_PATH_LOGS;
 			 File sdLogsStorageDir = new File(logsfileStoragePath);
 
 			 File file = new File(sdLogsStorageDir.toString() + File.separator + SharedData.batteryFileName);
@@ -191,7 +192,7 @@ public class FileOperations
 		
 		public void resetFiles()
 		{
-			 String logsfileStoragePath = Environment.getExternalStorageDirectory() + File.separator + SharedData.SD_FOLDER_PATH_LOGS;
+			 String logsfileStoragePath = SharedData.SD_PATH + File.separator + SharedData.SD_FOLDER_PATH_LOGS;
 			 File sdLogsStorageDir = new File(logsfileStoragePath);
 
 			 File fileBattery = new File(sdLogsStorageDir.toString() + File.separator + SharedData.batteryFileName);
@@ -200,7 +201,7 @@ public class FileOperations
 			 fileBattery.delete();
 		     fileMemCpu.delete();
 		     
-		     String csvfileStoragePath = Environment.getExternalStorageDirectory() + File.separator + SharedData.SD_FOLDER_PATH_CSV;
+		     String csvfileStoragePath = SharedData.SD_PATH + File.separator + SharedData.SD_FOLDER_PATH_CSV;
 			 File sdCsvStorageDir = new File(csvfileStoragePath);
 
 			 File fileCSV = new File(sdCsvStorageDir.toString() + File.separator + SharedData.csvFileName);
@@ -216,7 +217,7 @@ public class FileOperations
 		public void appendToMemCpuFile(String dataToAppend)
 		{
 			 		     
-			 String logsfileStoragePath = Environment.getExternalStorageDirectory() + File.separator + SharedData.SD_FOLDER_PATH_LOGS;
+			 String logsfileStoragePath = SharedData.SD_PATH + File.separator + SharedData.SD_FOLDER_PATH_LOGS;
 			 File sdLogsStorageDir = new File(logsfileStoragePath);
 
 			 File file = new File(sdLogsStorageDir.toString() + File.separator + SharedData.memcpuFileName);
@@ -263,7 +264,7 @@ public class FileOperations
 		public void appendToCpuUsageFile(String dataToAppend)
 		{
 			 		     
-			 String logsfileStoragePath = Environment.getExternalStorageDirectory() + File.separator + SharedData.SD_FOLDER_PATH_LOGS;
+			 String logsfileStoragePath = SharedData.SD_PATH + File.separator + SharedData.SD_FOLDER_PATH_LOGS;
 			 File sdLogsStorageDir = new File(logsfileStoragePath);
 
 			 File file = new File(sdLogsStorageDir.toString() + File.separator + SharedData.cpuRealFileName);
@@ -317,10 +318,7 @@ public class FileOperations
 			    
 				
 				//storage/emulated/0/Thesis/VoiceRecognizerSP/CSV/20MfccFeatures_1.csv
-				//File csvFile = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_CSV + File.separator + SharedData.csvFileName);
-				
-				if(!csvFile.exists())
-					csvFile = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_CSV + File.separator + SharedData.csvFileName);
+				File csvFile = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_CSV + File.separator + SharedData.csvFileName);
 				
 				csvWriter = new  PrintWriter(new FileWriter(csvFile,true));
 				

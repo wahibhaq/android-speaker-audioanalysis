@@ -16,14 +16,20 @@ import android.content.Context;
 import android.text.format.DateFormat;
 import android.util.Log;
 
-
+/**
+ * Monitor cpu usage, memory usage and dump all calculated values using {@link FileOperations}
+ * 
+ * @author Wahib-Ul-Haq 
+ * Mar 22, 2015
+ *
+ */
 
 public class MonitoringData {
 	
 	private Context appContext;
 	SharedData shared = null;
 	
-    final static String TAG = "VoiceRecognizerSP"; //Voice Recognizer with Superpowered functionality
+    final static String TAG = "MonitoringData"; //Voice Recognizer with Superpowered functionality
 
 	FileOperations fileOprObj;
     static volatile FileOperations fileInstance = null;
@@ -144,45 +150,25 @@ public class MonitoringData {
 		
 		return totalPrivateDirtyMemory;
 	
-		    
-
-	  /*
-		    Log.e("memory","     dalvik private: " + MI[0].dalvikPrivateDirty);
-		    Log.e("memory","     dalvik shared: " + MI[0].dalvikSharedDirty);
-		    Log.e("memory","     dalvik pss: " + MI[0].dalvikPss);            
-		    Log.e("memory","     native private: " + MI[0].nativePrivateDirty);
-		    Log.e("memory","     native shared: " + MI[0].nativeSharedDirty);
-		    Log.e("memory","     native pss: " + MI[0].nativePss);            
-		    Log.e("memory","     other private: " + MI[0].otherPrivateDirty);
-		    Log.e("memory","     other shared: " + MI[0].otherSharedDirty);
-		    Log.e("memory","     other pss: " + MI[0].otherPss);
-
-		    Log.e("memory","     total private dirty memory (KB): " + MI[0].getTotalPrivateDirty());
-		    Log.e("memory","     total shared (KB): " + MI[0].getTotalSharedDirty());
-		    Log.e("memory","     total pss: " + MI[0].getTotalPss());            
 		
-		*/
-	    
-	    
 	}
 	
-	static int count = 0;
+	static int countCpuValue = 0;
 	
 	public void dumpRealtimeCpuValues()
 	{
 		String line = "";
 		
-		if(count == 0)
+		if(countCpuValue == 0)
 		{
 			//first line to identify start of experiment
 			
-			line = "\n\n____New Experiment____" + getFormattedTimeStamp()+"\n\n";
+			line = "\n\n____New Experiment____" + getFormattedTimeStamp() + "____" + SharedData.fftType + "\n\n";
 			fileOprObj.appendToCpuUsageFile(line);
 			
-	        //cpuUsageValuesList = new ArrayList<Integer>();
 	        statObj = new DescriptiveStatistics();
 	        
-			count = 1;
+			countCpuValue = 1;
 						
 		}
 		else
@@ -198,7 +184,7 @@ public class MonitoringData {
 	    		statObj.addValue(Double.valueOf(getCpuUsage().toString()));
 		}
 		
-	    Log.i(TAG, "dumpRealtimeCpuValues()");
+	    //Log.i(TAG, "dumpRealtimeCpuValues()");
 
 		
 	}
@@ -218,6 +204,8 @@ public class MonitoringData {
 	public void dumpMeanAndSdForCpu()
 	{
 		fileOprObj.appendToCpuUsageFile("\n\nMean : " + calculateMeanCpuValues() + " --- Standard Deviation : " + calculateSdevationCpuValues() + "\n");
+		
+		countCpuValue = 0;//resetting
 	}
 	
 	 private String getFormattedTimeStamp() {
