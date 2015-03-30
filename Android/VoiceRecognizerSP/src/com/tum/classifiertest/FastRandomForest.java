@@ -21,7 +21,7 @@
  *    Copyright (C) 2009 Fran Supek (adapted code)
  */
 
-package com.example.rfnn;
+package com.tum.classifiertest;
 
 import weka.classifiers.AbstractClassifier;
 import weka.core.*;
@@ -30,6 +30,7 @@ import weka.core.TechnicalInformation.Type;
 
 import java.util.Enumeration;
 import java.util.Vector;
+
 
 /**
  * Based on the "weka.classifiers.trees.RandomForest" class, revision 1.12,

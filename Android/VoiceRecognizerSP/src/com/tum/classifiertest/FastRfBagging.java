@@ -21,7 +21,7 @@
  *    Copyright (C) 2013 Fran Supek (adapted code)
  */
 
-package com.example.rfnn;
+package com.tum.classifiertest;
 
 import weka.classifiers.Classifier;
 import weka.classifiers.RandomizableIteratedSingleClassifierEnhancer;

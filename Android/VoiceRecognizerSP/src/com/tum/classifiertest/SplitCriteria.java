@@ -20,7 +20,7 @@
  *      code, ContingencyTables.java )
  *    Copyright (C) 2008 Fran Supek (adapted code)
  */
-package com.example.rfnn;
+package com.tum.classifiertest;
 
 
 /**

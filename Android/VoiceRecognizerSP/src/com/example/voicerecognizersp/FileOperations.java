@@ -322,10 +322,91 @@ public class FileOperations
 				
 				csvWriter = new  PrintWriter(new FileWriter(csvFile,true));
 				
+				
 				for (ArrayList<double[]> window : featureList) {
 					for (double[] newline : window) {
+						
+						int colCount = 1;
 						for (double element : newline) {
-							csvWriter.print(element + ",");
+							
+							if(colCount == newline.length)
+								csvWriter.print(element); //not to add comma when its last column
+							else
+								csvWriter.print(element + ",");
+							
+							++colCount;
+						}
+						
+						
+						csvWriter.print("\r\n");
+					}
+				}
+			
+				//recreating and filling the csv for VAD 
+				updateCsvForVad(featureList);
+
+
+				csvWriter.close();
+				
+		    	Log.i(TAG, "MFCC audio2csv() data dumped");
+		    	
+
+		    	
+
+			}
+			catch (Exception e)
+			{
+				e.printStackTrace();
+			}
+		}
+		
+		
+		static boolean toggle = false;
+		/**
+		 * This is only to be used as input for VAD module
+		 * 
+		 * @param featureList
+		 */
+		public void updateCsvForVad(LinkedList<ArrayList<double[]>> featureList) {
+			
+			
+
+			PrintWriter csvWriter;
+			try
+			{
+			    
+				
+				//storage/emulated/0/Thesis/VoiceRecognizerSP/CSV/20MfccFeatures_1.csv
+				File csvFile = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_CSV + File.separator + SharedData.vadCsvFileName);
+				
+				csvWriter = new  PrintWriter(new FileWriter(csvFile,false)); //not appending
+				
+				for (ArrayList<double[]> window : featureList) {
+					
+					for (double[] newline : window) {
+					
+						int colCount = 1; 
+						
+						for (double element : newline) {
+							
+							if(colCount == newline.length) {
+								
+								//csvWriter.print(element + ",1"); //not to add comma when its last column
+								
+								if(toggle) {
+									csvWriter.print(element + ",1"); 
+									toggle = false;
+								}
+								else {
+									csvWriter.print(element + ",0"); 
+									toggle = true;
+								}
+									
+							}
+							else
+								csvWriter.print(element + ",");
+							
+							++colCount;
 						}
 						csvWriter.print("\r\n");
 					}
@@ -334,7 +415,7 @@ public class FileOperations
 
 				csvWriter.close();
 				
-		    	Log.i(TAG, "MFCC audio2csv() data dumped");
+		    	Log.i(TAG, "MFCC VAD audio2csv() data dumped");
 		    	
 
 		    	

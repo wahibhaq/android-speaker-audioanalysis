@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import org.apache.commons.collections.buffer.CircularFifoBuffer;
 
@@ -41,8 +42,12 @@ import com.example.javagmm.Window;
 public class MfccService extends Service {
 
 	private boolean mStop = false;
+	
+	//why volatime ? http://tutorials.jenkov.com/java-concurrency/volatile.html
 	private volatile Thread backgroundThread = null;
 	private volatile ExecutorService recordingExecService = null;
+	
+	private volatile ScheduledThreadPoolExecutor scheduleExec = null;
 	
 
 	
@@ -64,7 +69,6 @@ public class MfccService extends Service {
     private static String notificationConText = "idle mode";
     
 	final static String TAG = "MfccService"; 
-	//final static String APP_NAME = "VoiceRecognizerSP";
 
 	
 	///////////////////////
@@ -110,7 +114,8 @@ public class MfccService extends Service {
 	private static final int OVERLAP_SIZE_IN_SAMPLES = 160;
 	private static final int BUFFER_ITERATIONS_COUNT = 4;
 	
-	private static Runnable repeatRecordRunnable = null;
+	private static Runnable repeatRecordRunnable = null;//the one which actually repeats every cycle
+	private static Runnable delayTask = null;
 		
 	//private final int RECORDING_REPEAT_CYCLE = 10000; //1000 = 10 seconds
 	static int cycleCount = 0;
@@ -118,6 +123,8 @@ public class MfccService extends Service {
 		
 	MonitoringData monitorOprObj;
     FileOperations fileOprObj;
+    
+    VadManager vadOprObj;
 		///////////
 	
     public MfccService() {
@@ -164,6 +171,8 @@ public class MfccService extends Service {
         
         fileOprObj = new FileOperations();
         monitorOprObj = new MonitoringData(this, fileOprObj);
+        
+        vadOprObj = new VadManager(getApplicationContext());
 
        
         notifManager = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
@@ -188,6 +197,9 @@ public class MfccService extends Service {
         Log.i(TAG, "init()");
         
         recordingExecService = Executors.newCachedThreadPool();
+        
+        //scheduleExec = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(5);
+        //long period
         
         return true;
 
@@ -342,6 +354,7 @@ public class MfccService extends Service {
 	        dummy.interrupt();
     	}
         
+        
 
     	Log.i(TAG, "clean() released !");
     	
@@ -436,8 +449,24 @@ public class MfccService extends Service {
 		
 	}
 	
-	private void handleRecordingAudio()
-	{
+	/*private void handleProbeDelay() {
+		
+		delayTask = new Runnable(){
+            @Override
+            public void run() {
+                try{
+                    System.out.println("\t delayTask Execution Time: " + fmt.format(new Date()));
+                    Thread.sleep(10 * 1000);
+                    System.out.println("\t delayTask End Time: "
+                            + fmt.format(new Date()));
+                }catch(Exception e){
+                     
+                }
+            }
+        };
+	}*/
+	
+	private void handleRecordingAudio() {
 
 
 		repeatRecordRunnable = new Runnable() {
@@ -565,34 +594,36 @@ public class MfccService extends Service {
 				synchronized (this) {
 					if (isRecording())
 					{
-												
-						//to keep a check when buffer is full and needs to be send to process
-						++dataFrameCount;
+						if(audioRecorder != null) {						
 						
-						//the only reason to have 4 different dataFrame arrays is that buffer uses pass by reference so
-						//data was not actually changed in buffer even if dataFrame16bit content was changed 
-						if(dataFrameCount == 1)
-						{
-							readAudioSamples = audioRecorder.read(dataFrame16bit_one, 0, OVERLAP_SIZE_IN_SAMPLES);
-							buffer.add(dataFrame16bit_one);
+								//to keep a check when buffer is full and needs to be send to process
+							++dataFrameCount;
+							
+							//the only reason to have 4 different dataFrame arrays is that buffer uses pass by reference so
+							//data was not actually changed in buffer even if dataFrame16bit content was changed 
+							if(dataFrameCount == 1)
+							{
+								readAudioSamples = audioRecorder.read(dataFrame16bit_one, 0, OVERLAP_SIZE_IN_SAMPLES);
+								buffer.add(dataFrame16bit_one);
+							}
+							else if(dataFrameCount == 2)
+							{
+								readAudioSamples = audioRecorder.read(dataFrame16bit_two, 0, OVERLAP_SIZE_IN_SAMPLES);
+								buffer.add(dataFrame16bit_two);
+							}
+							else if(dataFrameCount== 3)
+							{
+								readAudioSamples = audioRecorder.read(dataFrame16bit_three, 0, OVERLAP_SIZE_IN_SAMPLES);
+								buffer.add(dataFrame16bit_three);
+							}
+							else if(dataFrameCount == 4)
+							{
+								readAudioSamples = audioRecorder.read(dataFrame16bit_four, 0, OVERLAP_SIZE_IN_SAMPLES);
+								buffer.add(dataFrame16bit_four);
+							}
+							
+							//Log.i(TAG, "MFCC circular buffer : " + dataFrameCount);
 						}
-						else if(dataFrameCount == 2)
-						{
-							readAudioSamples = audioRecorder.read(dataFrame16bit_two, 0, OVERLAP_SIZE_IN_SAMPLES);
-							buffer.add(dataFrame16bit_two);
-						}
-						else if(dataFrameCount== 3)
-						{
-							readAudioSamples = audioRecorder.read(dataFrame16bit_three, 0, OVERLAP_SIZE_IN_SAMPLES);
-							buffer.add(dataFrame16bit_three);
-						}
-						else if(dataFrameCount == 4)
-						{
-							readAudioSamples = audioRecorder.read(dataFrame16bit_four, 0, OVERLAP_SIZE_IN_SAMPLES);
-							buffer.add(dataFrame16bit_four);
-						}
-						
-						//Log.i(TAG, "MFCC circular buffer : " + dataFrameCount);
 						
 					}
 					else
@@ -660,6 +691,8 @@ public class MfccService extends Service {
 
 
 	    	//Log.i(TAG, "MFCC recording cycle : " + currentIteration);
+			
+			freq = null;
 	    	
 
 		}
@@ -820,7 +853,7 @@ public class MfccService extends Service {
 			//only keep energy-independent features, drop first coefficient
 			featureCepstrum[i-1] = featureCepstrumTemp[i];
 		}
-		
+	
 		return freq;
 	}
 
@@ -880,7 +913,10 @@ public class MfccService extends Service {
 	
 	private void repeatCycle()
 	{
-    				
+    	
+		vadOprObj.executeRfVad();
+		
+		//initiate repeat 
 		recordingExecService.submit(repeatRecordRunnable);
 
 

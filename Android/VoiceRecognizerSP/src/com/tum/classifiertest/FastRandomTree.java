@@ -21,7 +21,7 @@
  *    Copyright (C) 2013 Fran Supek (adapted code)
  */
 
-package com.example.rfnn;
+package com.tum.classifiertest;
 
 import java.util.Arrays;
 import weka.classifiers.AbstractClassifier;

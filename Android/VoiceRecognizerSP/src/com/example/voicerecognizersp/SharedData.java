@@ -27,10 +27,12 @@ public class SharedData {
 	public static String SD_FOLDER_PATH_LOGS = SD_FOLDER_PATH + "/Logs"; 
 	public static String SD_FOLDER_PATH_CSV = SD_FOLDER_PATH + "/CSV"; 
 
-	public static final String csvFileName = "voicerecognizer_mfcc.csv"; //"20MfccFeatures_";
+	public static final String csvFileName = "voicerecognizer_mfcc.csv"; 
 	public static final String batteryFileName = "battery_data.txt";
 	public static final String memcpuFileName = "memcpu_data.txt";
 	public static final String cpuRealFileName = "cpu_real_usage_data.txt";
+	
+	public static final String vadCsvFileName = "voicerecognizer_mfcc_vad.csv"; 
 
 	 
 	 

@@ -18,7 +18,7 @@
  *    Benchmark.java
  *    Copyright (C) 2008 Fran Supek
  */
-package com.example.rfnn;
+package com.tum.classifiertest;
 
 import java.io.BufferedReader;
 import java.io.File;

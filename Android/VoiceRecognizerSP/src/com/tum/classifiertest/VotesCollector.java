@@ -19,7 +19,7 @@
  *    Copyright (C) 2009 Fran Supek
  */
 
-package com.example.rfnn;
+package com.tum.classifiertest;
 
 import java.util.Random;
 import weka.classifiers.Classifier;

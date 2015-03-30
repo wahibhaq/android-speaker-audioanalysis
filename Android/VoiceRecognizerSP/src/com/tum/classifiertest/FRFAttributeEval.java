@@ -1,4 +1,4 @@
-package com.example.rfnn;
+package com.tum.classifiertest;
 
 import weka.attributeSelection.ASEvaluation;
 import weka.attributeSelection.AttributeEvaluator;

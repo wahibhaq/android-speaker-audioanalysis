@@ -18,7 +18,7 @@
  *    VotesCollectorDataCache.java
  *    Copyright (C) 2013 Fran Supek
  */
-package com.example.rfnn;
+package com.tum.classifiertest;
 
 
 import java.util.Random;

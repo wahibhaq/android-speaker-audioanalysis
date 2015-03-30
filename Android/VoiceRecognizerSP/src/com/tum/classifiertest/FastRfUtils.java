@@ -21,7 +21,7 @@
  *    Copyright (C) 2008 Fran Supek (adapted code)
  */
 
-package com.example.rfnn;
+package com.tum.classifiertest;
 
 import weka.core.Instance;
 import weka.core.Instances;
