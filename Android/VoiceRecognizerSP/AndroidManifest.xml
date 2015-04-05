@@ -6,12 +6,14 @@
 
     <uses-sdk
         android:minSdkVersion="16"
-        android:targetSdkVersion="18" />
+        android:targetSdkVersion="19" />
     
     
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     
+    <!--  <uses-permission android:name="android.permission.READ_SMS"/>
+	<uses-permission android:name="android.permission.RECEIVE_SMS"/> -->
 
     <application
         android:allowBackup="true"
@@ -34,17 +36,7 @@
             
         </activity>
         
-        <service
-  			android:name=".RecordingMfccService"
-  			>
-		</service>
-		
-        <service
-  			android:name=".Stefano"
-  			
-  			
-  			>
-		</service>
+      
 		
         <service
   			android:name=".MfccService"
@@ -52,34 +44,18 @@
   			  			
   			>
 		</service>
+
+	        
+	   <!-- <receiver
+		    android:name=".TelephonyBraodcastReceiver"
+		    android:enabled="true"
+		    android:exported="true">
+		    <intent-filter android:priority="999">
+		        <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+		    </intent-filter>
+		</receiver> -->
 		
-        <!-- android:theme="@android:style/Theme.NoDisplay"
-			android:enabled="true"
-			android:allowTaskReparenting="true"
-			android:noHistory="true"
-			android:excludeFromRecents="true"
-			android:alwaysRetainTaskState="false"
-			android:stateNotNeeded="true"
-			android:clearTaskOnLaunch="true"
-			android:finishOnTaskLaunch="true" -->
-		
-         <service
-          android:name=".MfccIntentService"
-          android:exported="false"/>
-		
-        <!-- 
-         <activity
-            android:name="com.example.classifiertest.MainBindingActivity"
-            android:label="@string/title_name" 
-            android:screenOrientation="portrait">
-            
-        </activity>
-        
-        <service
-  			android:name="com.example.classifiertest.RecordingMfccService">
-		</service>
-		
-		-->
+
     </application>
     
      

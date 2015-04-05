@@ -191,14 +191,18 @@ public class MonitoringData {
 	
 	public double calculateMeanCpuValues()
 	{
-		
-		return Double.valueOf(mathFormat.format(statObj.getMean()));
+		if(statObj != null)
+			return Double.valueOf(mathFormat.format(statObj.getMean()));
+		else
+			return 0.0;
 	}
 	
 	public double calculateSdevationCpuValues()
 	{
-		return Double.valueOf(mathFormat.format(statObj.getStandardDeviation()));
-
+		if(statObj != null)
+			return Double.valueOf(mathFormat.format(statObj.getStandardDeviation()));
+		else
+			return 0.0;
 	}
 	
 	public void dumpMeanAndSdForCpu()

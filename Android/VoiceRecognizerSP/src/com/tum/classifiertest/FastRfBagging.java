@@ -33,6 +33,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import android.util.Log;
+
 
 /**
  * Based on the "weka.classifiers.meta.Bagging" class, revision 1.39,
@@ -637,12 +639,21 @@ class FastRfBagging extends RandomizableIteratedSingleClassifierEnhancer
   public double[] distributionForInstance(Instance instance) throws Exception {
 
     double[] sums = new double[instance.numClasses()], newProbs;
+    //Log.i("FastRfBagging", " sums length : " + sums.length);//problem is that it is 1 instead of 2. coz instance is not nominal
+    
+    
+    //Log.i("FastRfBagging", "m_NumIterations : " + m_NumIterations);
+
 
     for (int i = 0; i < m_NumIterations; i++) {
       if (instance.classAttribute().isNumeric()) {
         sums[0] += m_Classifiers[i].classifyInstance(instance);
+        //Log.i("FastRfBagging", "yesNumeric , sum value : " + sums[0]);
+
       } else {
         newProbs = m_Classifiers[i].distributionForInstance(instance);
+        //Log.i("FastRfBagging", "notNumeric , newProbs length : " + newProbs.length);
+
         for (int j = 0; j < newProbs.length; j++)
           sums[j] += newProbs[j];
       }

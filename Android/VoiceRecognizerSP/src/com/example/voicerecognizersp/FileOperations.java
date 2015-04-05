@@ -10,6 +10,7 @@ import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.LinkedList;
 
@@ -32,17 +33,22 @@ public class FileOperations
 	final static String TAG = "FileOperations"; //Voice Recognizer with Superpowered functionality
 
 	Context activityContext = null;
-		
+	Double[] deltaList;
+	
+	DecimalFormat doublePrecision = new DecimalFormat("#0.00000");
+	
 	public FileOperations(Context context)
 	{
 		//only to be used by MonitoringData and BindingActivity
 		activityContext = context;
+
 
 	}
 	
 	public FileOperations() {
 		//only to be used by MfccService
 		
+		deltaList= new Double[17];
 	}
 	
 		
@@ -306,7 +312,7 @@ public class FileOperations
 		 * Takes the final compiled list of cepstral features and stores them in a csv file on the sdcard.
 		 * Each frame is represented by its MFCCs (without energy). 
 		 * 
-		 * @param arrayList
+		 * @param arrayList : list of windows
 		 */
 		public void appendToCsv(LinkedList<ArrayList<double[]>> featureList) {
 			
@@ -316,14 +322,13 @@ public class FileOperations
 			try
 			{
 			    
-				
-				//storage/emulated/0/Thesis/VoiceRecognizerSP/CSV/20MfccFeatures_1.csv
 				File csvFile = new File(SharedData.SD_PATH + SharedData.SD_FOLDER_PATH_CSV + File.separator + SharedData.csvFileName);
 				
 				csvWriter = new  PrintWriter(new FileWriter(csvFile,true));
 				
 				
 				for (ArrayList<double[]> window : featureList) {
+					
 					for (double[] newline : window) {
 						
 						int colCount = 1;
@@ -342,10 +347,7 @@ public class FileOperations
 					}
 				}
 			
-				//recreating and filling the csv for VAD 
-				updateCsvForVad(featureList);
-
-
+			
 				csvWriter.close();
 				
 		    	Log.i(TAG, "MFCC audio2csv() data dumped");
@@ -361,13 +363,12 @@ public class FileOperations
 		}
 		
 		
-		static boolean toggle = false;
 		/**
 		 * This is only to be used as input for VAD module
 		 * 
 		 * @param featureList
 		 */
-		public void updateCsvForVad(LinkedList<ArrayList<double[]>> featureList) {
+		/*public void updateCsvForVad(LinkedList<ArrayList<double[]>> featureList) {
 			
 			
 
@@ -386,28 +387,59 @@ public class FileOperations
 					for (double[] newline : window) {
 					
 						int colCount = 1; 
+						int tempColCount = 0, deltaColCount = 0;
+						double temp[] = new double[2];
+						boolean tempBool = true;
 						
 						for (double element : newline) {
 							
-							if(colCount == newline.length) {
+							temp[tempColCount++] = element;
+							
+							
+							//handling filling of delta list of 18 columns from 2nd element on wards
+							if(colCount >= 2) {
 								
-								//csvWriter.print(element + ",1"); //not to add comma when its last column
-								
-								if(toggle) {
-									csvWriter.print(element + ",1"); 
-									toggle = false;
+								if(tempBool) { 
+									deltaList[deltaColCount] = temp[1] - temp[0];
+									tempBool = false;
+									tempColCount = 0;
+
 								}
 								else {
-									csvWriter.print(element + ",0"); 
-									toggle = true;
+									deltaList[deltaColCount] = temp[0] - temp[1];
+									tempBool = true;
 								}
-									
+								
+								++deltaColCount;
+								
 							}
-							else
-								csvWriter.print(element + ",");
+							
+							
+							//csvWriter.print(element + ",");
+							csvWriter.print(doublePrecision.format(element) + ",");
 							
 							++colCount;
 						}
+						
+						deltaColCount = 1;
+						for(double delta : deltaList) {
+							
+							if(deltaColCount == deltaList.length) {
+								//csvWriter.print(delta + "," + delta + ",1"); //not to add comma when its last column
+								//csvWriter.print(doublePrecision.format(delta) + "," + doublePrecision.format(delta-1) + ",1");
+								
+								csvWriter.print(doublePrecision.format(delta) +  ",1");//but this last 1s is a dummy 36th column just to match training dataset
+
+							}
+							else {
+								//csvWriter.print(delta + ",");
+								csvWriter.print(doublePrecision.format(delta) + ",");
+							}
+							
+							++deltaColCount;
+							
+						}
+						
 						csvWriter.print("\r\n");
 					}
 				}
@@ -425,7 +457,49 @@ public class FileOperations
 			{
 				e.printStackTrace();
 			}
-		}
+		}*/
+		
+		/*private void appendDelta(LinkedList<ArrayList<double[]>> featureList) {
+			
+			for (ArrayList<double[]> window : featureList) {
+				
+				for (double[] newline : window) {
+				
+					int colCount = 1; 
+					int tempColCount = 0, deltaColCount = 0;
+					double temp[] = new double[2];
+					boolean tempBool = true;
+					
+					for (double element : newline) {
+						
+						temp[tempColCount++] = element;
+						
+						
+						//handling filling of delta list of 18 columns from 2nd element on wards
+						if(colCount >= 2) {
+							
+							if(tempBool) { 
+								deltaList[deltaColCount] = temp[1] - temp[0];
+								tempBool = false;
+								tempColCount = 0;
+
+							}
+							else {
+								deltaList[deltaColCount] = temp[0] - temp[1];
+								tempBool = true;
+							}
+							
+							++deltaColCount;
+							
+						}
+								
+						
+						++colCount;
+					}
+				}
+			}
+			
+		}*/
 		
 
 }

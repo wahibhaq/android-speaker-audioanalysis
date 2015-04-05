@@ -44,10 +44,11 @@ public class BindingActivity extends Activity {
 	 TextView txtMessage;
 	 final static String TAG = "BindingActivity";
 
-	 BroadcastReceiver receiver;
 	
 	 FileOperations fileOprObj;
 	 MonitoringData monitorOprObj;
+	 
+	 private BroadcastReceiver smsReceiver;
 	 
 	 
 	 @Override
@@ -138,26 +139,18 @@ public class BindingActivity extends Activity {
 			Intent intentService = new Intent(this, MfccService.class);
 			startService(intentService);
 			
+
 			//to reset UI every time activity comes active - mainly to show if recording is running or not
             resetUI();
+            
+            //initializeSMSReceiver();
+            //registerSMSReceiver();
+            
 			
 			
 	 }//onCreate ends here
  
-	 public static class ResponseReceiver extends BroadcastReceiver {
-		 
-		 public static final String LOCAL_ACTION = "com.example.voicerecognizersp.mfccservice.COMMUNICATION";
-		 
-		 @Override
-		 public void onReceive(Context context, Intent intent) {
-			 
-	        	String outputText = intent.getStringExtra(MfccService.COPA_MESSAGE);
-	        	Toast.makeText(context, outputText, Toast.LENGTH_LONG).show();
-	   		 	Log.i(TAG, "onReceive received : " + outputText);
-
-	       
-		 }
-	 }
+	
 
 	 @Override
 	 protected void onStart() {
@@ -198,9 +191,28 @@ public class BindingActivity extends Activity {
     	
     	super.onDestroy();
     	Log.i(TAG, "BindingActivity  - onDestroy called");
-    	    
+
+       // unregisterReceiver(smsReceiver);
     }
    
+   /*
+    private void initializeSMSReceiver(){
+        smsReceiver = new BroadcastReceiver(){
+            @Override
+            public void onReceive(Context context, Intent intent) {
+			    Log.i(TAG, "SMS received");
+
+                 
+            }          
+        };     
+    }
+    
+    
+    private void registerSMSReceiver() {   
+        IntentFilter intentFilter = new IntentFilter("android.provider.Telephony.SMS_RECEIVED");
+        registerReceiver(smsReceiver, intentFilter);
+    }
+    */
 	 
  	/** Defines callbacks for service binding, passed to bindService() */
     private ServiceConnection mConnection = new ServiceConnection() {
@@ -301,7 +313,7 @@ public class BindingActivity extends Activity {
     	monitorOprObj.dumpMeanAndSdForCpu();
 		
 	    
-	    //stopping service
+	    //To stop service which we don't do for now.
 	   // Intent intent = new Intent(this, MfccService.class);
 	   // stopService(intent);
 

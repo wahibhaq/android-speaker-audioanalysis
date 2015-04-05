@@ -1,5 +1,6 @@
 package com.example.voicerecognizersp;
 
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -8,13 +9,16 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import org.apache.commons.collections.buffer.CircularFifoBuffer;
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
@@ -22,6 +26,7 @@ import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.Trace;
+import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
@@ -41,7 +46,7 @@ import com.example.javagmm.Window;
  */
 public class MfccService extends Service {
 
-	private boolean mStop = false;
+	private boolean mStop = false; 
 	
 	//why volatime ? http://tutorials.jenkov.com/java-concurrency/volatile.html
 	private volatile Thread backgroundThread = null;
@@ -125,6 +130,9 @@ public class MfccService extends Service {
     FileOperations fileOprObj;
     
     VadManager vadOprObj;
+    DescriptiveStatistics vadPredictionList;
+	DecimalFormat doublePrecision = new DecimalFormat("#0.0");
+
 		///////////
 	
     public MfccService() {
@@ -158,8 +166,24 @@ public class MfccService extends Service {
         Log.i(TAG, "onCreate called");
 
         init();
+        
+        //registerCallSmsReceiver();
+
               
     }
+	 
+	/* private void registerCallSmsReceiver() {
+		 
+		 IntentFilter filter = new IntentFilter();
+		 filter.addAction("android.provider.Telephony.SMS_RECEIVED");
+		 //filter.addAction(android.telephony.TelephonyManager.ACTION_PHONE_STATE_CHANGED);
+		 //filter.addAction("your_action_strings"); //further more
+		 //filter.addAction("your_action_strings"); //further more
+
+		 filter.setPriority(Integer.MAX_VALUE);
+		 
+		 registerReceiver(receiver, filter);
+	 }*/
 	 
 	 /**
 	  * Handles of all necessary initializations
@@ -168,12 +192,14 @@ public class MfccService extends Service {
 
 		 
         //broadcaster = LocalBroadcastManager.getInstance(this);
-        
+
         fileOprObj = new FileOperations();
         monitorOprObj = new MonitoringData(this, fileOprObj);
         
+        //loads Vad model as well in the constructor 
         vadOprObj = new VadManager(getApplicationContext());
-
+        vadPredictionList = new DescriptiveStatistics();
+        
        
         notifManager = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
 
@@ -271,6 +297,7 @@ public class MfccService extends Service {
         
         clean();
         
+       // unregisterReceiver(receiver);
         
         notifManager.cancel(NOTIFICATION_ID);
         Log.i(TAG, "Cencelling notification");
@@ -301,11 +328,33 @@ public class MfccService extends Service {
     public IBinder onBind(Intent intent) {
         Log.d(TAG, "onBind called");
         
+
         return mBinder;
         //return null;
     }
+   
     
-    
+    //http://stackoverflow.com/a/9092277/1016544
+    /*private final BroadcastReceiver receiver = new BroadcastReceiver() {
+    	   @Override
+    	   public void onReceive(Context context, Intent intent) {
+ 	    	  Log.i(TAG, "SMS onReceive()");
+
+    	      String action = intent.getAction();
+    	      if(action.equals("android.provider.Telephony.SMS_RECEIVED")){
+    	        //action for sms received
+    	    	 
+    	    	  Log.i(TAG, "SMS Received");
+    	    	  
+    	      }
+    	      else if(action.equals(android.telephony.TelephonyManager.ACTION_PHONE_STATE_CHANGED)){
+    	           //action for phone state changed
+    	    	  
+    	    	  Log.i(TAG, "Phone State Changed");
+
+    	      }     
+    	   }
+    	}; */
     
     /////////////////////MFCC Operations to run in bacground////////////////
 
@@ -423,7 +472,7 @@ public class MfccService extends Service {
 				{
 					isRecording = false;
 
-					sendMsgToActivity("Stopped recording & Resetting");
+					//sendMsgToActivity("Stopped recording & Resetting");
 			    	updateNotification("idle mode");
 
 					clean();
@@ -581,8 +630,9 @@ public class MfccService extends Service {
     	Log.i(TAG, "Mfcc processAudioStream() Staring to Record !");
     	
     	
-    	//analysing and extracting MFCC features in a 20 sec frame. WINDOW_SIZE_IN_FRAMES here refers to 2 sec
-		while (currentIteration < windowsToRead * WINDOW_SIZE_IN_FRAMES) //640 = 10*64 -> 10*2s=20s
+    	//analysing and extracting MFCC features in a 5 sec frame. WINDOW_SIZE_IN_FRAMES here refers to 2 sec
+    	 //160 = 2.5 * 64 -> 2.5 * 2 sec => 5 sec 'while loop' with 2 windows running  
+		while (currentIteration < windowsToRead * WINDOW_SIZE_IN_FRAMES)
 		{
 			
 			// read() kann entweder mind. buffer_size/2 zeichen zur�ckliefern
@@ -637,9 +687,7 @@ public class MfccService extends Service {
 							if(!featureCepstrums.isEmpty())
 								featureCepstrums.removeLast();
 						}
-						
-				    	fileOprObj.appendToCsv(featureCepstrums);
-				    	
+										    	
 				    	
 						return;
 					}
@@ -673,10 +721,14 @@ public class MfccService extends Service {
 			//2s with a window size of 64
 			if (cepstrumWindow.size() == WINDOW_SIZE_IN_FRAMES){
 				
+				//Add this window to main collection of windows i.e featureCepstrumss
 				cepstrumWindow = new ArrayList<double[]>(WINDOW_SIZE_IN_FRAMES);
 				featureCepstrums.add(cepstrumWindow);
 		    	
-				//Log.i(TAG, "MFCC recording cycle : " + currentIteration);
+				//Log.i(TAG, "MFCC currentInteration# when adding window to list : " + currentIteration);
+				
+				//TODO : decide what to do with vad when window is completed
+				//Double.valueOf(doublePrecision.format(vadPredictionList.getMean()));
 
 			}
 			
@@ -686,26 +738,43 @@ public class MfccService extends Service {
 			// Add MFCCs of this frame to our window
 			cepstrumWindow.add(freq.getFeatureCepstrum());
 			
-			if(currentIteration == WINDOW_SIZE_IN_FRAMES * 5)
+			if(currentIteration == WINDOW_SIZE_IN_FRAMES * 5) {
 				monitorOprObj.dumpRealtimeCpuValues();//dumping at half for better evaluation
+			}
 
+	    	//Log.i(TAG, "MFCC iteration # : " + currentIteration);
+			
+			//TODO : call vad function here and save output because this is where a frame gets complete. 
+			//vadPredictionList.add(vadOprObj.executeRfVad());
+			
+			double[] frameFeatures = freq.getFeatureCepstrum();
+			//int vadPredPerFrame = 0;
+			
+			if(!Double.isNaN(frameFeatures[0])) { //this is to skip initial values which have NaN values
+				//vadPredPerFrame = vadOprObj.executeRfVad(freq.getFeatureCepstrum());
+				
+				vadPredictionList.addValue(vadOprObj.executeRfVad(freq.getFeatureCepstrum()));
+				
+		    	//Log.i(TAG, "VAD output : " + vadPredPerFrame);
 
-	    	//Log.i(TAG, "MFCC recording cycle : " + currentIteration);
+			}
+
 			
 			freq = null;
+			
+			//break;//toremove
 	    	
 
-		}
+		}//end of one window
 
     	Log.i(TAG, "MFCC processAudioStream() Done Recording !");
 
-    	//mfccFinalList.add(featureCepstrums);
+    	//add CSV data of all windows in this cycle
     	fileOprObj.appendToCsv(featureCepstrums);
-
-    	//((ArrayList<LinkedList<ArrayList<double[]>>>) mfccFinalList).trimToSize();//optimization
     	
     	repeatCycle();
-    	
+		
+
     	
     	///clearing up the most populated arrays/lists
     	featureCepstrums.clear();
@@ -750,7 +819,7 @@ public class MfccService extends Service {
 		double fftBufferR[] = new double[FFT_SIZE];
 		double fftBufferI[] = new double[FFT_SIZE];
 	
-		double[] featureCepstrum = new double[MFCCS_VALUE-1];
+		double[] featureCepstrum = new double[NUMBER_OF_FINAL_FEATURES];
 		
 		short dataFrame16bit[] = new short[samples];
 		
@@ -914,7 +983,9 @@ public class MfccService extends Service {
 	private void repeatCycle()
 	{
     	
-		vadOprObj.executeRfVad();
+		//TODO : compute average of vad function output here because this is where cycle gets complete
+		//Double.valueOf(doublePrecision.format(vadPredictionList.getMean()));
+
 		
 		//initiate repeat 
 		recordingExecService.submit(repeatRecordRunnable);
@@ -935,16 +1006,9 @@ public class MfccService extends Service {
 	}
 	
 
-	/*public void sendResult(String message) {
-	    Intent intent = new Intent(COPA_RESULT);
-	    
-	    if(message != null)
-	        intent.putExtra(COPA_MESSAGE, message);
-	    
-	    broadcaster.sendBroadcast(intent);
-	}*/
 	
-	public void sendMsgToActivity(String message) {
+	
+	/*public void sendMsgToActivity(String message) {
 	    Intent broadcastIntent = new Intent();
 	    broadcastIntent.setAction(BindingActivity.ResponseReceiver.LOCAL_ACTION);
 	    
@@ -953,7 +1017,7 @@ public class MfccService extends Service {
 	    
 	    LocalBroadcastManager localBroadcastManager = LocalBroadcastManager.getInstance(this);
 	    localBroadcastManager.sendBroadcast(broadcastIntent);
-	}
+	}*/
 	
     
 
