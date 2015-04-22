@@ -12,9 +12,6 @@ import android.os.Environment;
  */
 public class SharedData {
 	
-	public SharedData() {
-		
-	}
 	
 	public static String fftType = "FFT_SP"; //FFT_CT : Cooley-Tukey and other option is FFT_SP : Superpowered
     public static final String appProcessName = "com.example.voicerecognizersp";
@@ -33,6 +30,25 @@ public class SharedData {
 	public static final String cpuRealFileName = "cpu_real_usage_data.txt";
 	
 	public static final String vadCsvFileName = "voicerecognizer_mfcc_vad.csv"; 
+	
+	//////////Probing specific/////
+
+	public static final int IDLE_INITIAL_DELAY = 0;
+	public static final int IDLE_PROBE_DURATION = 6;//sec
+	public static final int IDLE_WAIT_DURATION = 54;//sec
+	
+	public static final int SPEECH_WAIT_DURATION = 18;
+	
+	public static final int WINDOW_DURATION = 2;
+	
+	public static final int MIN_WINDOW_COUNT_SWITCH_TO_SPEECH = 0;
+	public static final double MIN_WINDOW_SCORE_IF_SPEECH = 0.5;
+	public static final int MIN_WINDOW_COUNT_SWITCH_TO_SPEAKER = 2;
+	public static final int THRESHOLD_WINDOW_COUNT_SWITCH_BACK_TO_SPEECH = 2;
+	public static final int THRESHOLD_WINDOW_COUNT_SWITCH_BACK_TO_IDLE = 6;
+
+
+
 
 	 
 	 

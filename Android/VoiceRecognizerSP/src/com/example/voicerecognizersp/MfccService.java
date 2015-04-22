@@ -4,9 +4,12 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
-import java.util.concurrent.ExecutorService;
+import java.util.Random;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.collections.buffer.CircularFifoBuffer;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
@@ -15,10 +18,8 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
@@ -26,7 +27,6 @@ import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.Trace;
-import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
@@ -50,11 +50,11 @@ public class MfccService extends Service {
 	
 	//why volatime ? http://tutorials.jenkov.com/java-concurrency/volatile.html
 	private volatile Thread backgroundThread = null;
-	private volatile ExecutorService recordingExecService = null;
+	//private volatile ExecutorService recordingExecService = null;
 	
-	private volatile ScheduledThreadPoolExecutor scheduleExec = null;
-	
-
+	private volatile ScheduledExecutorService scheduleExecService = null;
+	private static volatile ScheduledFuture<?> futureForSchedule = null;
+	private static volatile Future<?> futureForSubmit = null;
 	
 	///////////Service parameters/////////////
 		
@@ -78,7 +78,7 @@ public class MfccService extends Service {
 	
 	///////////////////////
 	
-//////////Voice Recognizer specific ///////////
+	//////////Voice Recognizer specific ///////////
 	
 	private static final int RECORDER_SOURCE = MediaRecorder.AudioSource.VOICE_RECOGNITION;
 	private static final int RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
@@ -92,8 +92,11 @@ public class MfccService extends Service {
 	//now its 16000 samples/s divided by 512 samples.frame but still -> 32ms/frame (31.25ms)
 	private static final int FRAME_SIZE_IN_SAMPLES = 512; //512 = default value;
 	
+	 //used because for idle mode window is 6s instead of 2s
+	private static int WINDOW_SIZE_IN_FRAMES_FACTOR = 3;
+	
 	//32ms/frame times 64frames/window = 2s/window
-	private static final int WINDOW_SIZE_IN_FRAMES = 64;
+	private static int WINDOW_SIZE_IN_FRAMES = 64 * WINDOW_SIZE_IN_FRAMES_FACTOR; 
 	
 	private static final int MFCCS_VALUE = 19; //MFCCs count 
 	private static final int NUMBER_OF_FINAL_FEATURES = MFCCS_VALUE - 1; //discard energy
@@ -115,25 +118,48 @@ public class MfccService extends Service {
 	private static final int DROP_FIRST_X_WINDOWS = 1;
 	
 	//////////////////variabled added later by Wahib//////////////
-	private static final double windowsToRead = 2.5; //10;//10 = 20 seconds //2.5 = 5 seconds; //audio file duration in seconds
+	
+	//2.5; //10;//10 = 20 seconds //2.5 = 5 seconds; //audio file duration in seconds
+	//windowsToRead = 3 means 6 sec while loop.
+	//for vad, stick to 1 so that one while loop == 1 window
+	private static final double windowsToRead = 1; 
+	
 	private static final int OVERLAP_SIZE_IN_SAMPLES = 160;
 	private static final int BUFFER_ITERATIONS_COUNT = 4;
 	
 	private static Runnable repeatRecordRunnable = null;//the one which actually repeats every cycle
 	private static Runnable delayTask = null;
 		
-	//private final int RECORDING_REPEAT_CYCLE = 10000; //1000 = 10 seconds
 	static int cycleCount = 0;
-	//final int maxCycleCount = 100; //use it to set total time to run; total time (sec) = maxCycleCount * RECORDING_REPEAT_CYCLE
-		
-	MonitoringData monitorOprObj;
-    FileOperations fileOprObj;
+	
+	//Data monitoring specific
+	private MonitoringData monitorOprObj;
+    private FileOperations fileOprObj;
     
-    VadManager vadOprObj;
-    DescriptiveStatistics vadPredictionList;
-	DecimalFormat doublePrecision = new DecimalFormat("#0.0");
-
-		///////////
+    //Vad specifc
+    private VadManager vadOprObj;
+    private DescriptiveStatistics vadPredictionList;
+	private DecimalFormat doublePrecision = new DecimalFormat("#0.0");
+	private static double windowScore = 0;
+	private static int windowCount = 0;
+	
+	//Probing specific
+	private static String mode = "idle";
+	
+	private static float speechPrediction = 0;
+	private static float speakerPrediction = 0;
+	
+	private static boolean isIdle = true;
+	private static boolean isSpeech = false;
+	private static boolean isSpeaker = false;
+	
+	private static int windowAsSpeechCount = 0;
+	private static CircularFifoBuffer speechWindowBuffer = null;
+	
+	//Simulation specific
+	private Simulation simulateOprObj;
+	
+	///////////
 	
     public MfccService() {
         Log.i(TAG, "constructor done");
@@ -196,10 +222,13 @@ public class MfccService extends Service {
         fileOprObj = new FileOperations();
         monitorOprObj = new MonitoringData(this, fileOprObj);
         
-        //loads Vad model as well in the constructor 
-        vadOprObj = new VadManager(getApplicationContext());
+        vadOprObj = new VadManager(getApplicationContext());        //loads Vad model as well in the constructor 
         vadPredictionList = new DescriptiveStatistics();
+		speechWindowBuffer = new CircularFifoBuffer(12);
+
         
+        simulateOprObj = new Simulation();
+        simulateOprObj.scenario2();//Setting Simulation Scenario
        
         notifManager = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
 
@@ -222,10 +251,8 @@ public class MfccService extends Service {
         
         Log.i(TAG, "init()");
         
-        recordingExecService = Executors.newCachedThreadPool();
-        
-        //scheduleExec = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(5);
-        //long period
+        //recordingExecService = Executors.newCachedThreadPool();     
+        scheduleExecService = Executors.newScheduledThreadPool(5);
         
         return true;
 
@@ -330,7 +357,6 @@ public class MfccService extends Service {
         
 
         return mBinder;
-        //return null;
     }
    
     
@@ -374,7 +400,9 @@ public class MfccService extends Service {
     	
         if(init())
         {
-        	recordAudioFromMic();
+        	initStartAudioFromMic();
+        	
+        	
 
         	backgroundThread.start();
         }
@@ -386,7 +414,8 @@ public class MfccService extends Service {
     	//Cleaning threads and order matters.
     	
 
-		recordingExecService.shutdown();		
+		//recordingExecService.shutdown();
+    	scheduleExecService.shutdownNow();//shutdownNow() tries to kill the currently running tasks immediately
 
     	if(audioRecorder != null) {
 			audioRecorder.stop();
@@ -423,7 +452,7 @@ public class MfccService extends Service {
 	 * a file {@link #storeAudioStream()}. Otherwise we process the stream
 	 * immediately {@link #processAudioStream()}.
 	 */
-	protected void recordAudioFromMic() {
+	protected void initStartAudioFromMic() {
 		
 		synchronized (this) {
 			if (isRecording())
@@ -498,22 +527,7 @@ public class MfccService extends Service {
 		
 	}
 	
-	/*private void handleProbeDelay() {
-		
-		delayTask = new Runnable(){
-            @Override
-            public void run() {
-                try{
-                    System.out.println("\t delayTask Execution Time: " + fmt.format(new Date()));
-                    Thread.sleep(10 * 1000);
-                    System.out.println("\t delayTask End Time: "
-                            + fmt.format(new Date()));
-                }catch(Exception e){
-                     
-                }
-            }
-        };
-	}*/
+	
 	
 	private void handleRecordingAudio() {
 
@@ -538,7 +552,7 @@ public class MfccService extends Service {
 			}
 		};
 		
-		recordingExecService.submit(repeatRecordRunnable);
+		futureForSchedule = scheduleExecService.scheduleWithFixedDelay(repeatRecordRunnable, SharedData.IDLE_INITIAL_DELAY, SharedData.IDLE_WAIT_DURATION, TimeUnit.SECONDS);
 		
 	}
 	
@@ -626,12 +640,15 @@ public class MfccService extends Service {
 		
 		
 		FrequencyProperties freq = null;
+		double[] frameFeatures = null;
 		
     	Log.i(TAG, "Mfcc processAudioStream() Staring to Record !");
     	
     	
     	//analysing and extracting MFCC features in a 5 sec frame. WINDOW_SIZE_IN_FRAMES here refers to 2 sec
     	 //160 = 2.5 * 64 -> 2.5 * 2 sec => 5 sec 'while loop' with 2 windows running  
+    	//64 = 1 * 64 -> 1 * 2 sec = 2 sec 'while loop' with 1 window running
+    	//Long probe in Idle mode : 192 = 1 * (64*3) -> 1 * (2*3) sec = 6 sec 'while loop' with 1 long window of 6 sec running
 		while (currentIteration < windowsToRead * WINDOW_SIZE_IN_FRAMES)
 		{
 			
@@ -719,50 +736,45 @@ public class MfccService extends Service {
 			
 			//combine WINDOW_SIZE_IN_FRAMES frames to a window
 			//2s with a window size of 64
-			if (cepstrumWindow.size() == WINDOW_SIZE_IN_FRAMES){
+			//if (cepstrumWindow.size() == WINDOW_SIZE_IN_FRAMES){
+			if (cepstrumWindow.size() == WINDOW_SIZE_IN_FRAMES - 1){
 				
 				//Add this window to main collection of windows i.e featureCepstrumss
 				cepstrumWindow = new ArrayList<double[]>(WINDOW_SIZE_IN_FRAMES);
 				featureCepstrums.add(cepstrumWindow);
 		    	
-				//Log.i(TAG, "MFCC currentInteration# when adding window to list : " + currentIteration);
-				
-				//TODO : decide what to do with vad when window is completed
-				//Double.valueOf(doublePrecision.format(vadPredictionList.getMean()));
+				//the function which considers current state, windowScore, windowCount and decides when to switch
+				computeProbeSwitching();
+
 
 			}
 			
 			currentIteration++;
 
-		
-			// Add MFCCs of this frame to our window
-			cepstrumWindow.add(freq.getFeatureCepstrum());
-			
+			//TODO : change the count to bring to half
 			if(currentIteration == WINDOW_SIZE_IN_FRAMES * 5) {
 				monitorOprObj.dumpRealtimeCpuValues();//dumping at half for better evaluation
 			}
 
 	    	//Log.i(TAG, "MFCC iteration # : " + currentIteration);
 			
-			//TODO : call vad function here and save output because this is where a frame gets complete. 
-			//vadPredictionList.add(vadOprObj.executeRfVad());
 			
-			double[] frameFeatures = freq.getFeatureCepstrum();
-			//int vadPredPerFrame = 0;
-			
-			if(!Double.isNaN(frameFeatures[0])) { //this is to skip initial values which have NaN values
-				//vadPredPerFrame = vadOprObj.executeRfVad(freq.getFeatureCepstrum());
+			frameFeatures = freq.getFeatureCepstrum();
+
+			// Add MFCCs of this frame to our window
+			cepstrumWindow.add(frameFeatures);
+		
+			if(frameFeatures.length > 0 && !Double.isNaN(frameFeatures[0])) { //this is to skip initial values which have NaN values
 				
-				vadPredictionList.addValue(vadOprObj.executeRfVad(freq.getFeatureCepstrum()));
+				vadPredictionList.addValue(vadOprObj.executeRfVad(frameFeatures));
 				
-		    	//Log.i(TAG, "VAD output : " + vadPredPerFrame);
+		    	//Log.i(TAG, "VAD output per Frame: " + vadOprObj.executeRfVad(freq.getFeatureCepstrum()));
 
 			}
 
 			
 			freq = null;
 			
-			//break;//toremove
 	    	
 
 		}//end of one window
@@ -772,7 +784,7 @@ public class MfccService extends Service {
     	//add CSV data of all windows in this cycle
     	fileOprObj.appendToCsv(featureCepstrums);
     	
-    	repeatCycle();
+
 		
 
     	
@@ -980,16 +992,10 @@ public class MfccService extends Service {
 	
 
 	
-	private void repeatCycle()
-	{
+	private void repeatCycle() {
     	
-		//TODO : compute average of vad function output here because this is where cycle gets complete
-		//Double.valueOf(doublePrecision.format(vadPredictionList.getMean()));
-
-		
 		//initiate repeat 
-		recordingExecService.submit(repeatRecordRunnable);
-
+		futureForSubmit = scheduleExecService.submit(repeatRecordRunnable);
 
 		
     	Log.i(TAG, "------------------------");
@@ -1019,7 +1025,356 @@ public class MfccService extends Service {
 	    localBroadcastManager.sendBroadcast(broadcastIntent);
 	}*/
 	
-    
+	
+	
+	//////////////////////Probing Manager//////////////////
+	
+	/**
+	 * Calculates if the windowScore is good enough/enough probability to be considered as speech 
+	 * @param avgScore from all frames in this particular window
+	 */
+	private void checkIfWindowIsSpeech(double avgScore) {
+		
+
+		if(avgScore >= SharedData.MIN_WINDOW_SCORE_IF_SPEECH) {
+			
+			speechWindowBuffer.add(1);
+			//++windowAsSpeechCount;
+		}
+		else {
+			speechWindowBuffer.add(0);
+		}
+		
+		//just for testing
+	    //Random randomGenerator = new Random();
+		//speechWindowBuffer.add(randomGenerator.nextInt(1));
+			
+
+		
+	}
+	
+	/**
+	 * considers all the most recent scores of windows. score is either 1 (speech exists) or 0 (speech doesn't exist)
+	 * @return count of windows which are considered true speech
+	 */
+	private int getCountOfTrueSpeech() {
+		
+		int countTrueSpeech = 0;
+		for(Object element : speechWindowBuffer) {
+			
+			if((Integer)element == 1) {
+				++countTrueSpeech;
+			}
+			
+		}
+		
+		return countTrueSpeech;
+	}
+	
+	private boolean shouldSwitchFromIdleToSpeech() {
+				
+		
+		//if(windowAsSpeechCount > SharedData.MIN_WINDOW_COUNT_SWITCH_TO_SPEECH)
+		/*if(getCountOfTrueSpeech() > SharedData.MIN_WINDOW_COUNT_SWITCH_TO_SPEECH)
+			return true;
+		else
+			return false;*/
+		
+			
+		
+		return Simulation.SWITCH_FORWARD_FROM_IDLE_TO_SPEECH; //true; just for testing
+	}
+	
+	
+	
+	private boolean shouldSwitchFromSpeechToSpeaker() {
+		
+		/*
+		//if(windowAsSpeechCount >= SharedData.MIN_WINDOW_COUNT_SWITCH_TO_SPEAKER) {
+		if(getCountOfTrueSpeech() >= SharedData.MIN_WINDOW_COUNT_SWITCH_TO_SPEAKER) {
+			
+			return true;
+		}
+		else {
+			
+			return false;
+		}*/
+		
+		//Log.i(TAG, "Probing : shouldSpeechToSpeaker countOfTrueSpeech : " + getCountOfTrueSpeech());
+
+		
+		return Simulation.SWITCH_FORWARD_FROM_SPEECH_TO_SPEAKER; //true;//only for testing
+		
+	}
+	
+	private boolean shouldSwitchBackFromSpeechToIdle() {
+		
+		
+		/*
+		//if(windowAsSpeechCount < SharedData.THRESHOLD_WINDOW_COUNT_SWITCH_BACK_TO_IDLE) {
+		if(getCountOfTrueSpeech() < SharedData.THRESHOLD_WINDOW_COUNT_SWITCH_BACK_TO_IDLE) {
+			
+			return true;
+		}
+		else {
+			
+			return false;
+		}*/
+		
+		//Log.i(TAG, "Probing : shouldSpeechToIdle countOfTrueSpeech : " + getCountOfTrueSpeech());
+
+		
+		return Simulation.SWITCH_BACKWARD_FROM_SPEECH_TO_IDLE; //true; //only for testing
+		
+	}
+	
+	private void remainInSpeechMode() {
+		
+		windowCount = 0;
+		//windowAsSpeechCount = 0;
+		cycleCount = 0;
+		
+		repeatCycle();
+		
+		
+	}
+	
+	private boolean shouldSwitchBackFromSpeakerToSpeech(){
+		
+		/*
+		//if(windowAsSpeechCount < SharedData.THRESHOLD_WINDOW_COUNT_SWITCH_BACK_TO_SPEECH) {
+		if( getCountOfTrueSpeech() < SharedData.THRESHOLD_WINDOW_COUNT_SWITCH_BACK_TO_SPEECH) {
+			return true;
+		}
+		else {
+			return false;
+		}*/
+		
+		return Simulation.SWITCH_BACKWARD_FROM_SPEAKER_TO_SPEECH; //true; //only for testing
+	}
+	
+
+	private void switchFromIdleToSpeech() {
+		
+		isSpeech = true;
+		isIdle = false;
+		isSpeaker = false;
+		
+		//resetting WINDOW_SIZE_IN_FRAMES
+		WINDOW_SIZE_IN_FRAMES_FACTOR = 1;
+		WINDOW_SIZE_IN_FRAMES = 64 * WINDOW_SIZE_IN_FRAMES_FACTOR; 
+
+		windowCount = 0;
+		//windowAsSpeechCount = 0;
+		cycleCount = 0;
+				
+		if(futureForSchedule.cancel(true)) //cancels already running probe in idle mode and avoid going in waiting 
+			futureForSubmit = scheduleExecService.submit(repeatRecordRunnable);//initiate probe for regular 2s windows 
+		
+	}
+	
+	private void switchFromSpeechToIdle() {
+		
+		isIdle = true;
+		isSpeech = false;
+		isSpeaker = false;
+		
+		//resetting WINDOW_SIZE_IN_FRAMES
+		WINDOW_SIZE_IN_FRAMES_FACTOR = 3;
+		WINDOW_SIZE_IN_FRAMES = 64 * WINDOW_SIZE_IN_FRAMES_FACTOR;  
+		
+		windowCount = 0;
+		//windowAsSpeechCount = 0;
+		cycleCount = 0;
+
+		
+		if(futureForSubmit.cancel(true))//cancels previous running idle mode task
+			futureForSchedule = scheduleExecService.scheduleWithFixedDelay(repeatRecordRunnable, SharedData.IDLE_INITIAL_DELAY, SharedData.IDLE_WAIT_DURATION, TimeUnit.SECONDS);
+		
+		
+	}
+	
+	public void switchFromSpeechToSpeaker() {
+		
+		isSpeaker = true;
+		isSpeech = true;
+		isIdle = false;
+		
+		//windowAsSpeechCount = 0;
+		windowCount = 0;
+		cycleCount = 0;
+		
+		if(futureForSubmit.cancel(true))
+			futureForSubmit = scheduleExecService.submit(repeatRecordRunnable);//initiate probe for regular 2s windows
+
+	}
+		
+	private void addWaitingDelayInSpeech() {
+		
+		futureForSchedule = scheduleExecService.schedule(repeatRecordRunnable, SharedData.SPEECH_WAIT_DURATION, TimeUnit.SECONDS);
+		
+	}
+	
+	private void switchBackFromSpeakerToSpeech() {
+		
+		isSpeech = true;
+		isIdle = false;
+		isSpeaker = false;
+		
+		//resetting WINDOW_SIZE_IN_FRAMES
+		WINDOW_SIZE_IN_FRAMES_FACTOR = 1;
+		WINDOW_SIZE_IN_FRAMES = 64 * WINDOW_SIZE_IN_FRAMES_FACTOR;  
+
+		windowCount = 0;
+		//windowAsSpeechCount = 0;
+		cycleCount = 0;
+		
+		if(futureForSubmit.cancel(true))
+			futureForSubmit = scheduleExecService.submit(repeatRecordRunnable);//initiate probe for regular 2s windows
+	}
+	
+	
+	
+	
+	
+	
+	private boolean isIdle() {
+		
+		if(isIdle == true && isSpeech == false && isSpeaker == false)
+			return true;
+		else
+			return false;
+	}
+	
+	private boolean isSpeech() {
+	
+		if(isIdle == false && isSpeech == true && isSpeaker == false)
+			return true;
+		else
+			return false;
+	}
+	
+	private boolean isSpeaker() {
+		
+		if(isIdle == false && isSpeech == true && isSpeaker == true)
+			return true;
+		else
+			return false;
+		
+	}
+	
+	/**
+	 * Chec if switching of mode needs to be done on the basis of windowCount, windowScore and/or on the basis of scenario
+	 * in {@link Simulation}.
+	 */
+	private void computeProbeSwitching() {
+		
+		
+		//calculates average of all outputs of frames to give score for 1 window
+		windowScore = Double.valueOf(doublePrecision.format(vadPredictionList.getMean()));
+		Log.i(TAG, "Window Score : " + windowScore);
+		
+		++windowCount;//counter used to detect when to evaluate for switching
+		
+		//checks from most recent windowScore entries and increments counter for true speech instances
+		checkIfWindowIsSpeech(windowScore); 
+		
+		
+		if(isIdle()) {
+			//checking here coz in Idle mode, 1 window is 1 probing cycle
+			//comes here after 6 sec of execution 
+			
+			Log.i(TAG, "Probing : Idle mode & windowCount : " + windowCount);
+
+			if(shouldSwitchFromIdleToSpeech()) {
+				
+				switchFromIdleToSpeech();
+				Log.i(TAG, "Probing : ---> Switching from Idle to Speech now");
+
+
+			}
+			else {
+				
+				//no need to change the probe state coz alredy in idle mode
+				Log.i(TAG, "Probing : Waiting time in idle mode ..");
+				
+
+				
+			}
+		}
+		else if(isSpeech()) {
+			//Running Speech Mode
+			Log.i(TAG, "Probing : Speech mode & windowCount : " + windowCount);
+
+			
+			if(windowCount == 6) {
+				
+				//to check from out of 6 windows
+				Log.i(TAG, "Probing : Speech mode & checking out of 6 windows");
+
+				if(shouldSwitchFromSpeechToSpeaker()) {
+					switchFromSpeechToSpeaker();
+					Log.i(TAG, "Probing : --> Switching from Speech To Speaker");
+
+				}
+				else {
+					Log.i(TAG, "Probing : Add waiting delay in Speech mode");
+					addWaitingDelayInSpeech();
+
+				}
+			}
+			else if(windowCount == 12) {
+				
+				//to check from out of 12 windows
+				Log.i(TAG, "Probing : Speech mode & checking out of 12 windows");
+
+				if(shouldSwitchBackFromSpeechToIdle()) {
+					switchFromSpeechToIdle();
+					Log.i(TAG, "Probing : --> Switching back from Speech To Idle");
+
+				}
+				else {
+					remainInSpeechMode();
+				}
+			}
+			else {
+				Log.i(TAG, "Probing : Speech mode and running ..");
+				repeatCycle();
+			}
+				
+		}
+		else if(isSpeaker()) {
+			//Running Speaker mode
+			Log.i(TAG, "Probing : Speaker mode & windowCount : " + windowCount);
+			
+			if(windowCount == 30) {
+				
+				//to check from out of 30 windows
+				Log.i(TAG, "Probing : Speaker mode & checking out of 30 windows");
+				
+				if(shouldSwitchBackFromSpeakerToSpeech()) {
+					switchBackFromSpeakerToSpeech();
+					Log.i(TAG, "Probing : --> Switching back from Speaker To Speech");
+
+				}
+				else {
+					Log.i(TAG, "Probing : Continuing with Speaker mode ..");
+					windowCount = 0;
+					repeatCycle();
+
+				}
+
+			}
+			else {
+				Log.i(TAG, "Probing : Speaker mode and running ..");
+				repeatCycle();
+			}
+			
+			
+		}
+	}
+	
+	
 
     
 

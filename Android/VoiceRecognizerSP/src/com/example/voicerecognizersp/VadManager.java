@@ -44,6 +44,7 @@ public class VadManager {
 	private ArrayList<Attribute> atts;
 	static final int size = 36;
 	private static double[] finalMfccVadList;
+	private static double[] lastMfccVadList = null;
 
 	
 	public VadManager(Context context) {
@@ -53,23 +54,7 @@ public class VadManager {
         
 		assManager = context.getAssets();
 		kryo = new Kryo();
-		
-		/*mainRunnable = new Runnable() {
-			
-			@Override
-			public void run() {
-				
-			    Log.i(TAG, "Main Code is running...");
 
-			    try {
-			    	predictifyRf();
-				} 
-				catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
-		};*/
 		
 			
 		init();
@@ -88,12 +73,7 @@ public class VadManager {
 		return predictifyVadOnFrame(frameData);
 		
 	}
-	
-	/*public void executeRfVad() {
-		
-		execService.submit(mainRunnable);
-		
-	}*/
+
 	
 	public void stopRfVad() {
 		
@@ -376,49 +356,64 @@ public class VadManager {
 	}
 	
 	/**
-	 * It takes extracted featuers, calculate delta values for each adjacent value and returns 
-	 * the array which has original (18 values) and delta as appended ones as well so total 36.
+	 * It takes extracted features, calculate delta values for next frame and previous frame.  
+	 * The first 18 columns would be the new frame and the next 18 columns are the difference of values i.e delta
 	 * @param newline
-	 * @return
+	 * @return if everything works fine then true otherwise false
 	 */
-	private boolean getMfccWithDelta(double[] newline) {
 	
-		int colCount = 1; 
-		int tempColCount = 0, deltaColCount = newline.length;
-		double temp[] = new double[2];
-		boolean tempBool = true;
+	private boolean getMfccWithDelta(double[] newline) {
 		
-		for (double element : newline) {
+		int colCount = 0; 
+		int deltaColCount = newline.length;
+		
+		if(lastMfccVadList != null) {
 			
-			temp[tempColCount++] = element;
-			
-			finalMfccVadList[colCount-1] = element;
-
-			
-			//handling filling of delta list of 18 columns from 2nd element on wards
-			if(colCount >= 2) {
+			if(lastMfccVadList.length == newline.length) {
 				
-				if(tempBool) { 
+				//where main computation happens
+				
+				for (double element : newline) {
+										
+					finalMfccVadList[colCount] = element;//for populating the first 18 elements
 					
-					finalMfccVadList[deltaColCount] = temp[1] - temp[0];
-					tempBool = false;
-					tempColCount = 0;
+					//handling filling of delta list of other 18 columns as different of values from both frames
+					finalMfccVadList[deltaColCount] = finalMfccVadList[colCount] - lastMfccVadList[colCount] ; //frame2 - frame1
 
-				}
-				else {
-					finalMfccVadList[deltaColCount] = temp[0] - temp[1];
-					tempBool = true;
+					++deltaColCount;
+					++colCount;
 				}
 				
-				++deltaColCount;
 				
+					
+				return true;
+			}
+			else {
+				
+				//if length doesn't match
+				
+				Log.i(TAG, "length of both frames doesn't match");
+				
+				return false;
 			}
 			
-			++colCount;
+			
+		}
+		else {
+			
+			//for first time
+			lastMfccVadList = newline;
+			
+			return false;
+
 		}
 		
-		return true;
+		
+		
+		
+		
 	}
+	
 	
 	
 
@@ -429,7 +424,7 @@ public class VadManager {
 		try {
 				
 			    testData = new Instances("TestInstances",atts,0);
-		        //Log.i(TAG, "csvData before adding instance : " + csvData);
+		        //Log.i(TAG, "csvData before adding instance : " + testData);
 		        //Log.i(TAG, "----------------------------------------------");
 		    
 			    if(getMfccWithDelta(frameData))
@@ -438,13 +433,14 @@ public class VadManager {
 			    	return output;
 			    
 			    
-		        ///Log.i(TAG, "csvData after adding instance : " + testData);
+		        //Log.i(TAG, "csvData after adding instance : " + testData);
 		        //Log.i(TAG, "----------------------------------------------");
 
 		        
 				////class index starts from 0 //numAttributes() - 1 was original. so now with -1 its like 0 -> 35
-				testData.setClassIndex(testData.numAttributes() - 1); 
-		        //Log.i(TAG, "csvData numAttributes : " + csvData.numAttributes());
+			    testData.setClassIndex(testData.numAttributes() - 1);
+		        
+			    //Log.i(TAG, "csvData numAttributes : " + testData.numAttributes());
 				//Log.i(TAG, "numInstances : " + testData.numInstances());
 
 
@@ -469,8 +465,8 @@ public class VadManager {
 			    testData = Filter.useFilter(testData, num2nom);
 	
 				
-				//Log.i(TAG, "numInstances : " + newData.numInstances());
-		        //Log.i(TAG, "newData numAttributes : " + newData.numAttributes());
+				//Log.i(TAG, "numInstances : " + testData.numInstances());
+		        //Log.i(TAG, "newData numAttributes : " + testData.numAttributes());
 
 
 				//only for informational purposes (attribute metadata)
@@ -479,69 +475,79 @@ public class VadManager {
 				
 				int instIdx = 0;
 				
+				if(!testData.isEmpty()) {
 				
-				Instance currInst = testData.instance(instIdx);
-				//Log.i(TAG, "currInst : " + instIdx);
-
-				double score = 0;
-				try {
-					
-					score = rf.classifyInstance(currInst);
-					
-					//Log.i(TAG, "score : " + score);
-
-				} 
-				catch (ArrayIndexOutOfBoundsException e) {
-					e.printStackTrace();
-				}
-				catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-
-				//Log.i(TAG, "newData ClassAttribute.value : " + newData.classAttribute().value());
+						Instance currInst = testData.instance(instIdx);
+					//Log.i(TAG, "currInst : " + instIdx);
 	
-				//code changed because predValue was coming blank so ParstInt was giving error
-				String predValue = testData.classAttribute().value((int) score); 
-				int pred = 0;
-				if(!predValue.equals(""))
-					pred = Integer.parseInt(predValue);
-				
-				//compiling data for confusion matrix
-				/*
-				int truePos = 0, trueNeg = 0, falsePos = 0, falseNeg = 0;
-
-				String actualValue = testData.classAttribute().value((int) currInst.classValue()); 
-				int actual = 0;
-				if(!actualValue.equals(""))
-					actual = Integer.parseInt(actualValue);
-				
-				if (pred == 1)
-					if (actual == 1)
-						truePos++;
+					double score = 0;
+					try {
+						
+						score = rf.classifyInstance(currInst);
+						
+						//Log.i(TAG, "classifier score : " + score);
+	
+					} 
+					catch (ArrayIndexOutOfBoundsException e) {
+						e.printStackTrace();
+					}
+					catch (Exception e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+	
+					//Log.i(TAG, "newData ClassAttribute.value : " + testData.classAttribute().value());
+		
+					//code changed because predValue was coming blank so ParstInt was giving error
+					String predValue = testData.classAttribute().value((int) score); 
+					int pred = 0;
+					if(!predValue.equals(""))
+						pred = Integer.parseInt(predValue);
+					
+					//compiling data for confusion matrix
+					/*
+					int truePos = 0, trueNeg = 0, falsePos = 0, falseNeg = 0;
+	
+					String actualValue = testData.classAttribute().value((int) currInst.classValue()); 
+					int actual = 0;
+					if(!actualValue.equals(""))
+						actual = Integer.parseInt(actualValue);
+					
+					if (pred == 1)
+						if (actual == 1)
+							truePos++;
+						else
+							falsePos++;
 					else
-						falsePos++;
-				else
-					if (actual == 1)
-						falseNeg++;
-					else
-						trueNeg++;
-				
+						if (actual == 1)
+							falseNeg++;
+						else
+							trueNeg++;
+					
+	
+					//Log.v(TAG, "Confusion matrix:");
+					
+					Log.v(TAG, "\tTP: " + truePos);
+					Log.v(TAG, "\tTN: " + trueNeg);
+					Log.v(TAG, "\tFP: " + falsePos);
+					Log.v(TAG, "\tFN: " + falseNeg);
+					 
+					 */
+				    
+					//Releaseing
+					
+	                output = pred;
+	                //Log.v(TAG, "prediction : " + pred);
 
-				//Log.v(TAG, "Confusion matrix:");
-				
-				Log.v(TAG, "\tTP: " + truePos);
-				Log.v(TAG, "\tTN: " + trueNeg);
-				Log.v(TAG, "\tFP: " + falsePos);
-				Log.v(TAG, "\tFN: " + falseNeg);
-				 
-				 */
-			    
-				//Releaseing
 
-                if(testData != null) testData.delete();
-		        
-                output = pred;
+					
+				}
+	
+	            
+				
+				if(testData != null) testData.delete();
+			        
+				
     			
 			}
 			
@@ -572,6 +578,8 @@ public class VadManager {
 			input = new Input(model);
 			
 			rf = kryo.readObject(input, FastRandomForest.class);
+			
+			
 			
 			
 		
